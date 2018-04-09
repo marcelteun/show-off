@@ -3,6 +3,9 @@ polyhedron.create=function(offFile) {
 	$.get(offFile, function(data) {
 		var shape = polyhedron.getOffShape(data);
 		console.log('shape', shape);
+		if (shape) {
+			polyhedron.triangulate(shape)
+		}
 	});
 };
 polyhedron.getOffShape=function(data) {
@@ -115,6 +118,24 @@ polyhedron.getOffShape=function(data) {
 	} else {
 		return null;
 	}
+}
+polyhedron.triangulate=function(shape) {
+	ts = [];
+	for (var n = 0; n < shape.Fs.length; n++) {
+		var triF = [];
+		var f = shape.Fs[n];
+		if (f.length == 3) {
+			ts.push(f);
+		} else {
+			for (var i = 1; i < f.length - 1; i++) {
+				// i+1 before i, to keep clock-wise direction
+				triF = triF.concat([f[0], f[i+1], f[i]]);
+			}
+			console.log('triangulate face', n, triF);
+			ts.push(triF);
+		}
+	}
+	shape.triangulatedFs = ts
 }
 
 // vim: set noexpandtab sw=8
