@@ -1,9 +1,25 @@
 var polyhedron={};
+function gl_init(canvas) {
+	try {
+		gl = canvas.getContext("webgl");
+	} catch (e) {
+	}
+	if (!gl) {
+		alert("Error initialising WebGL");
+	} else {
+		gl.viewportWidth = canvas.width;
+		gl.viewportHeight = canvas.height;
+	}
+	polyhedron.gl = gl
+}
+
 polyhedron.create=function(offFile) {
 	$.get(offFile, function(data) {
 		var shape = polyhedron.getOffShape(data);
 		console.log('shape', shape);
 		if (shape) {
+			var canvas = document.getElementById("experiment");
+			gl_init(canvas);
 			polyhedron.triangulate(shape)
 		}
 	});
@@ -90,6 +106,8 @@ polyhedron.getOffShape=function(data) {
 							}
 						}
 					}
+					// add alpha = 1
+					col.push(1);
 					shape.cols[nrRead] = col;
 					console.log('face', face, 'col', col);
 					nrRead += 1;
@@ -120,22 +138,47 @@ polyhedron.getOffShape=function(data) {
 	}
 }
 polyhedron.triangulate=function(shape) {
-	ts = [];
+	var fs = [];
+	var vs = [];
+	var cols = [];
+	var no_vs = 0;
 	for (var n = 0; n < shape.Fs.length; n++) {
-		var triF = [];
 		var f = shape.Fs[n];
-		if (f.length == 3) {
-			ts.push(f);
-		} else {
-			for (var i = 1; i < f.length - 1; i++) {
-				// i+1 before i, to keep clock-wise direction
-				triF = triF.concat([f[0], f[i+1], f[i]]);
-			}
-			console.log('triangulate face', n, triF);
-			ts.push(triF);
+		// add colour and vertices per face (as 1 dimensional list):
+		for (var i = 0; i < f.length; i++) {
+			vs = vs.concat(shape.Vs[f[i]]);
+			cols = cols.concat(shape.cols[n]);
 		}
+		var tris_1_face = [];
+		for (var i = 1; i < f.length - 1; i++) {
+			// i+1 before i, to keep clock-wise direction
+			tris_1_face = tris_1_face.concat([no_vs, no_vs + i + 1, no_vs + i]);
+		}
+		no_vs += f.length;
+		console.log('triangulate face', n, tris_1_face);
+		fs.push(tris_1_face);
 	}
-	shape.triangulatedFs = ts
+	var gl = polyhedron.gl
+	var gl_vs = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, gl_vs);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vs), gl.STATIC_DRAW);
+	gl_vs.itemSize = 3;
+	gl_vs.numItems = no_vs;
+	shape.gl_vs = gl_vs;
+
+	var gl_v_cols = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, gl_v_cols);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cols), gl.STATIC_DRAW);
+	gl_v_cols.itemSize = 4;
+	gl_v_cols.numItems = no_vs;
+	shape.gl_v_cols = gl_v_cols;
+
+	var gl_fs = gl.createBuffer();
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl_fs);
+	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(fs), gl.STATIC_DRAW);
+	gl_fs.itemSize = 1;
+	gl_fs.numItems = fs.length;
+	shape.gl_fs = gl_fs;
 }
 
 // vim: set noexpandtab sw=8
