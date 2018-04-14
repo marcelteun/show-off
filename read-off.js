@@ -13,22 +13,24 @@ function create_gl_context(id) {
 	return ctx;
 }
 
-var polyhedron={};
-polyhedron.load_on=function(offFile, id) {
+function Shape (offFile, id) {
 	/* Retrieve the specified off-file, interpret the file and draw it the
 	 * the canvas with the name 'id'.
 	 */
+	var for_cb = this; // define var the reach it in call-back
 	$.get(offFile, function(data) {
-		var shape = polyhedron.getOffShape(data);
-		console.log('shape', shape);
+		ok = for_cb.getOffShape(data);
+		console.log('shape', for_cb);
 		ctx = create_gl_context(id);
-		if (shape && ctx) {
-			shape.gl = ctx;
-			polyhedron.triangulate(shape)
+		if (ok && ctx) {
+			for_cb.gl = ctx;
+			for_cb.triangulate();
+			draw_shape(for_cb, id);
 		}
 	});
-};
-polyhedron.getOffShape=function(data) {
+}
+
+Shape.prototype.getOffShape=function(data) {
 	states = {
 		'checkOff': 0,
 		'readSizes': 1,
@@ -36,7 +38,6 @@ polyhedron.getOffShape=function(data) {
 		'readFs': 3,
 		'readOk': 4
 	};
-	var shape = {};
 	var nrRead = 0;
 	var state = states.checkOff;
 	var lines = data.split('\n');
@@ -58,23 +59,23 @@ polyhedron.getOffShape=function(data) {
 				var nrOfVs = parseInt(words[0]);
 				var nrOfFs = parseInt(words[1]);
 				var nrOfEs = parseInt(words[2]);
-				shape.Vs = new Array(nrOfVs);
-				shape.Fs = new Array(nrOfFs);
-				shape.Es = [];
-				shape.cols = new Array(nrOfFs);
+				this.Vs = new Array(nrOfVs);
+				this.Fs = new Array(nrOfFs);
+				this.Es = [];
+				this.cols = new Array(nrOfFs);
 				console.log('will read', nrOfVs, 'Vs', nrOfFs, 'Fs (', nrOfEs, 'edges)');
 				state = states.readVs;
 				break;
 			case states.readVs:
 				error = words.length < 3;
 				if (!error) {
-					shape.Vs[nrRead] = [
+					this.Vs[nrRead] = [
 						parseFloat(words[0]),
 						parseFloat(words[1]),
 						parseFloat(words[2])];
-					console.log(shape.Vs[nrRead]);
+					console.log(this.Vs[nrRead]);
 					nrRead += 1;
-					if (nrRead >= shape.Vs.length) {
+					if (nrRead >= this.Vs.length) {
 						console.log('read Vs done');
 						state = states.readFs;
 						nrRead = 0;
@@ -93,9 +94,9 @@ polyhedron.getOffShape=function(data) {
 						face[j] = parseInt(words[j+1]);
 					}
 					if (n >= 3) {
-						shape.Fs[nrRead] = face;
+						this.Fs[nrRead] = face;
 					} else if (n == 2) {
-						shape.Es.push(face);
+						this.Es.push(face);
 					} // else ignore, but count
 					var col = new Array(3);
 					if (words.length == n + 1) {
@@ -112,11 +113,11 @@ polyhedron.getOffShape=function(data) {
 					}
 					// add alpha = 1
 					col.push(1);
-					shape.cols[nrRead] = col;
+					this.cols[nrRead] = col;
 					console.log('face', face, 'col', col);
 					nrRead += 1;
-					console.log(nrRead, shape.Fs.length);
-					if (nrRead >= shape.Fs.length) {
+					console.log(nrRead, this.Fs.length);
+					if (nrRead >= this.Fs.length) {
 						state = states.readOk;
 						console.log('Done reading OFF file');
 						nrRead = 0;
@@ -135,19 +136,15 @@ polyhedron.getOffShape=function(data) {
 	if (state != states.readOk) {
 		console.error('Error reading OFF file');
 	}
-	if (!error) {
-		return shape;
-	} else {
-		return null;
-	}
+	return (!error)
 }
-polyhedron.triangulate=function(shape) {
+Shape.prototype.triangulate=function() {
 	/*
-	 * Divide all the faces in shape.Fs, shape.Vs and shape.cols into
-	 * triangles and save in the result in shape.gl_vs, shape.gl_v_cols, and
-	 * shape.gl_fs.
+	 * Divide all the faces in this.Fs, this.Vs and this.cols into
+	 * triangles and save in the result in this.gl_vs, this.gl_v_cols, and
+	 * this.gl_fs.
 	 *
-	 * shape: should contain:
+	 * this: should contain:
 	 *        - Vs: array of vertices, each element is a 3 dimensional array
 	 *          of floats.
 	 *        - Fs: array of faces. Each face consists of indices of Vs in a
@@ -156,16 +153,16 @@ polyhedron.triangulate=function(shape) {
 	 *          the face with the same index in Fs has the specified colour.
 	 *          Each colour is an array of RGB values 0 <= colour <= 1.
 	 * Result:
-	 *        shape.gl_vs: an OpenGL vertex buffer object with the fields
+	 *        this.gl_vs: an OpenGL vertex buffer object with the fields
 	 *                     itemSize  and numItems. The latter expresses the
 	 *                     amount of vertices, the former the length per
 	 *                     vertex.
-	 *        shape.gl_vcols: an OpenGL vertex colour buffer object with the
+	 *        this.gl_vcols: an OpenGL vertex colour buffer object with the
 	 *                        fields itemSize  and numItems. The latter
 	 *                        expresses the amount of vertices, the former
 	 *                        the length per vertex. Numitems should be
-	 *                        equal to shape.gl_vs.numItems
-	 *        shape.gl_fs: an OpenGL face buffer object with the fields
+	 *                        equal to this.gl_vs.numItems
+	 *        this.gl_fs: an OpenGL face buffer object with the fields
 	 *                     itemSize  and numItems. The latter expresses the
 	 *                     amount of face indices, the former the length per
 	 *                     index (i.e. 1). Each triplet forms a triangle.
@@ -174,12 +171,12 @@ polyhedron.triangulate=function(shape) {
 	var vs = [];
 	var cols = [];
 	var no_vs = 0;
-	for (var n = 0; n < shape.Fs.length; n++) {
-		var f = shape.Fs[n];
+	for (var n = 0; n < this.Fs.length; n++) {
+		var f = this.Fs[n];
 		// add colour and vertices per face (as 1 dimensional list):
 		for (var i = 0; i < f.length; i++) {
-			vs = vs.concat(shape.Vs[f[i]]);
-			cols = cols.concat(shape.cols[n]);
+			vs = vs.concat(this.Vs[f[i]]);
+			cols = cols.concat(this.cols[n]);
 		}
 		var tris_1_face = [];
 		for (var i = 1; i < f.length - 1; i++) {
@@ -190,27 +187,27 @@ polyhedron.triangulate=function(shape) {
 		fs = fs.concat(tris_1_face);
 		console.log('triangulate face', n, tris_1_face);
 	}
-	var gl = shape.gl
+	var gl = this.gl
 	var gl_vs = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, gl_vs);
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vs), gl.STATIC_DRAW);
 	gl_vs.itemSize = 3;
 	gl_vs.numItems = no_vs;
-	shape.gl_vs = gl_vs;
+	this.gl_vs = gl_vs;
 
 	var gl_v_cols = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, gl_v_cols);
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cols), gl.STATIC_DRAW);
 	gl_v_cols.itemSize = 4;
 	gl_v_cols.numItems = no_vs;
-	shape.gl_v_cols = gl_v_cols;
+	this.gl_v_cols = gl_v_cols;
 
 	var gl_fs = gl.createBuffer();
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl_fs);
 	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(fs), gl.STATIC_DRAW);
 	gl_fs.itemSize = 1;
 	gl_fs.numItems = fs.length;
-	shape.gl_fs = gl_fs;
+	this.gl_fs = gl_fs;
 }
 
 // vim: set noexpandtab sw=8
