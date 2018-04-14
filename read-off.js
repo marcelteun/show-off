@@ -1,4 +1,3 @@
-var polyhedron={};
 function gl_init(canvas) {
 	try {
 		gl = canvas.getContext("webgl");
@@ -13,6 +12,7 @@ function gl_init(canvas) {
 	polyhedron.gl = gl
 }
 
+var polyhedron={};
 polyhedron.create=function(offFile) {
 	$.get(offFile, function(data) {
 		var shape = polyhedron.getOffShape(data);
