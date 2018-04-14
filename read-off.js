@@ -138,6 +138,34 @@ polyhedron.getOffShape=function(data) {
 	}
 }
 polyhedron.triangulate=function(shape) {
+	/*
+	 * Divide all the faces in shape.Fs, shape.Vs and shape.cols into
+	 * triangles and save in the result in shape.gl_vs, shape.gl_v_cols, and
+	 * shape.gl_fs.
+	 *
+	 * shape: should contain:
+	 *        - Vs: array of vertices, each element is a 3 dimensional array
+	 *          of floats.
+	 *        - Fs: array of faces. Each face consists of indices of Vs in a
+	 *          counter-clockwise order.
+	 *        - cols: array of face colors. The index in cols defines that
+	 *          the face with the same index in Fs has the specified colour.
+	 *          Each colour is an array of RGB values 0 <= colour <= 1.
+	 * Result:
+	 *        shape.gl_vs: an OpenGL vertex buffer object with the fields
+	 *                     itemSize  and numItems. The latter expresses the
+	 *                     amount of vertices, the former the length per
+	 *                     vertex.
+	 *        shape.gl_vcols: an OpenGL vertex colour buffer object with the
+	 *                        fields itemSize  and numItems. The latter
+	 *                        expresses the amount of vertices, the former
+	 *                        the length per vertex. Numitems should be
+	 *                        equal to shape.gl_vs.numItems
+	 *        shape.gl_fs: an OpenGL face buffer object with the fields
+	 *                     itemSize  and numItems. The latter expresses the
+	 *                     amount of face indices, the former the length per
+	 *                     index (i.e. 1). Each triplet forms a triangle.
+	 */
 	var fs = [];
 	var vs = [];
 	var cols = [];
