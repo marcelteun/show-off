@@ -183,10 +183,10 @@ polyhedron.triangulate=function(shape) {
 			tris_1_face = tris_1_face.concat([no_vs, no_vs + i + 1, no_vs + i]);
 		}
 		no_vs += f.length;
+		fs = fs.concat(tris_1_face);
 		console.log('triangulate face', n, tris_1_face);
-		fs.push(tris_1_face);
 	}
-	var gl = polyhedron.gl
+	var gl = shape.gl
 	var gl_vs = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, gl_vs);
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vs), gl.STATIC_DRAW);
