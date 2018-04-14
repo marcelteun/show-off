@@ -1,25 +1,29 @@
-function gl_init(canvas) {
+function create_gl_context(id) {
+	var canvas = document.getElementById(id);
 	try {
-		gl = canvas.getContext("webgl");
+		ctx = canvas.getContext("webgl");
 	} catch (e) {
 	}
-	if (!gl) {
+	if (!ctx) {
 		alert("Error initialising WebGL");
 	} else {
-		gl.viewportWidth = canvas.width;
-		gl.viewportHeight = canvas.height;
+		ctx.viewportWidth = canvas.width;
+		ctx.viewportHeight = canvas.height;
 	}
-	polyhedron.gl = gl
+	return ctx;
 }
 
 var polyhedron={};
-polyhedron.create=function(offFile) {
+polyhedron.load_on=function(offFile, id) {
+	/* Retrieve the specified off-file, interpret the file and draw it the
+	 * the canvas with the name 'id'.
+	 */
 	$.get(offFile, function(data) {
 		var shape = polyhedron.getOffShape(data);
 		console.log('shape', shape);
-		if (shape) {
-			var canvas = document.getElementById("experiment");
-			gl_init(canvas);
+		ctx = create_gl_context(id);
+		if (shape && ctx) {
+			shape.gl = ctx;
 			polyhedron.triangulate(shape)
 		}
 	});
