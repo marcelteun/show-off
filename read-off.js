@@ -1,36 +1,26 @@
 function create_gl_context(id) {
 	var canvas = document.getElementById(id);
-	try {
-		ctx = canvas.getContext("webgl");
-	} catch (e) {
-	}
-	if (!ctx) {
-		alert("Error initialising WebGL");
-	} else {
-		ctx.viewportWidth = canvas.width;
-		ctx.viewportHeight = canvas.height;
-	}
+	ctx = canvas.getContext("webgl");
+	ctx.viewport_width = canvas.width;
+	ctx.viewport_height = canvas.height;
 	return ctx;
 }
 
-function Shape (offFile, id) {
-	/* Retrieve the specified off-file, interpret the file and draw it the
+function Shape(off_file, id) {
+	/* Retrieve the specified off-file, interpret the file and draw it on
 	 * the canvas with the name 'id'.
 	 */
-	var for_cb = this; // define var the reach it in call-back
-	$.get(offFile, function(data) {
-		ok = for_cb.getOffShape(data);
-		console.log('shape', for_cb);
-		ctx = create_gl_context(id);
-		if (ok && ctx) {
-			for_cb.gl = ctx;
-			for_cb.triangulate();
-			draw_shape(for_cb, id);
-		}
+	this.off_file = off_file;
+	this.gl = create_gl_context(id);
+	var this_ = this; // define var the reach inside call-back
+	$.get(off_file, function(data) {
+		this_.get_off_shape(data);
+		this_.triangulate();
+		this_.draw(this_);
 	});
 }
 
-Shape.prototype.getOffShape=function(data) {
+Shape.prototype.get_off_shape = function(data) {
 	states = {
 		'checkOff': 0,
 		'readSizes': 1,
@@ -134,11 +124,11 @@ Shape.prototype.getOffShape=function(data) {
 		}
 	}
 	if (state != states.readOk) {
-		console.error('Error reading OFF file');
+		throw 'Error reading OFF file';
 	}
-	return (!error)
 }
-Shape.prototype.triangulate=function() {
+
+Shape.prototype.triangulate = function() {
 	/*
 	 * Divide all the faces in this.Fs, this.Vs and this.cols into
 	 * triangles and save in the result in this.gl_vs, this.gl_v_cols, and
@@ -208,6 +198,10 @@ Shape.prototype.triangulate=function() {
 	gl_fs.itemSize = 1;
 	gl_fs.numItems = fs.length;
 	this.gl_fs = gl_fs;
+}
+
+Shape.prototype.draw = function() {
+	console.log('Draw function for', this.off_file);
 }
 
 // vim: set noexpandtab sw=8
