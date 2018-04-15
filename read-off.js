@@ -1,3 +1,27 @@
+var frag_shader = `
+precision mediump float;
+
+varying vec4 vColor;
+
+void main(void) {
+	 gl_FragColor = vColor;
+}`;
+
+var vert_shader = `
+attribute vec3 v_pos_attr;
+attribute vec4 v_col_attr;
+
+uniform mat4 pos_mat;
+uniform mat4 proj_mat;
+
+varying vec4 vColor;
+
+void main(void) {
+	gl_Position = proj_mat * pos_mat * vec4(v_pos_attr, 1.0);
+	vColor = v_col_attr;
+}
+`
+
 function create_gl_context(id) {
 	var canvas = document.getElementById(id);
 	ctx = canvas.getContext("webgl");
@@ -6,17 +30,24 @@ function create_gl_context(id) {
 	return ctx;
 }
 
-function Shape(off_file, id) {
+function Shape(off_file, canvas_id, f_shader_id, v_shader_id) {
 	/* Retrieve the specified off-file, interpret the file and draw it on
-	 * the canvas with the name 'id'.
+	 * the canvas with the name 'canvas_id'.
+	 *
+	 * off_file: the file in .off format that specifies the shape
+	 * canvas_id: the name of the canvas to draw on
+	 * f_shader_id: the ID of the fragment shader program to use
+	 * v_shader_id: the ID of the vertex shader program to use
 	 */
 	this.off_file = off_file;
-	this.gl = create_gl_context(id);
+	this.gl = create_gl_context(canvas_id);
+	this.f_shader = this.compile_f_shader(frag_shader)
+	this.v_shader = this.compile_v_shader(vert_shader)
 	var this_ = this; // define var the reach inside call-back
 	$.get(off_file, function(data) {
 		this_.get_off_shape(data);
 		this_.triangulate();
-		this_.draw(this_);
+		this_.init_shaders(this_);
 	});
 }
 
@@ -198,6 +229,53 @@ Shape.prototype.triangulate = function() {
 	gl_fs.itemSize = 1;
 	gl_fs.numItems = fs.length;
 	this.gl_fs = gl_fs;
+}
+
+Shape.prototype.compile_shader = function(shader, prog) {
+	var gl = this.gl;
+	gl.shaderSource(shader, prog);
+	gl.compileShader(shader);
+
+	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+		throw prog + ":\n" + gl.getShaderInfoLog(shader);
+	}
+}
+
+Shape.prototype.compile_f_shader = function(prog) {
+	var shader = this.gl.createShader(this.gl.FRAGMENT_SHADER);
+	this.compile_shader(shader, prog);
+	return shader;
+}
+
+Shape.prototype.compile_v_shader = function(prog) {
+	var shader = this.gl.createShader(this.gl.VERTEX_SHADER);
+	this.compile_shader(shader, prog);
+	return shader;
+}
+
+Shape.prototype.init_shaders = function() {
+	var gl = this.gl;
+	shader_prog = gl.createProgram();
+	gl.attachShader(shader_prog, this.v_shader);
+	gl.attachShader(shader_prog, this.f_shader);
+	gl.linkProgram(shader_prog);
+
+	if (!gl.getProgramParameter(shader_prog, gl.LINK_STATUS)) {
+            throw "Error initialising shaders";
+	}
+
+	gl.useProgram(shader_prog);
+
+	shader_prog.v_pos_attr = gl.getAttribLocation(shader_prog, "v_pos_attr");
+	gl.enableVertexAttribArray(shader_prog.v_pos_attr);
+
+	shader_prog.v_col_attr = gl.getAttribLocation(shader_prog, "v_col_attr");
+	gl.enableVertexAttribArray(shader_prog.v_col_attr);
+
+	shader_prog.proj_mat = gl.getUniformLocation(shader_prog, "proj_mat");
+	shader_prog.pos_mat = gl.getUniformLocation(shader_prog, "pos_mat");
+
+	this.shader_prog = shader_prog
 }
 
 Shape.prototype.draw = function() {
