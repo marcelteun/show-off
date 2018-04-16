@@ -6,31 +6,6 @@
 
 <script type="text/javascript" src="webgl-lesssons.git/js/gl-matrix-2.2.1.js"></script>
 
-<script id="shader-fs" type="x-shader/x-fragment">
-    precision mediump float;
-
-    varying vec4 vColor;
-
-    void main(void) {
-        gl_FragColor = vColor;
-    }
-</script>
-
-<script id="shader-vs" type="x-shader/x-vertex">
-    attribute vec3 aVertexPosition;
-    attribute vec4 aVertexColor;
-
-    uniform mat4 uMVMatrix;
-    uniform mat4 uPMatrix;
-
-    varying vec4 vColor;
-
-    void main(void) {
-        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
-        vColor = aVertexColor;
-    }
-</script>
-
 <script type="text/javascript" src="lesson2.js"></script></script>
 </head>
 

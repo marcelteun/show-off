@@ -1,4 +1,29 @@
-function OGL(canvas) {
+var frag_shader = `
+	precision mediump float;
+
+	varying vec4 vColor;
+
+	void main(void) {
+		gl_FragColor = vColor;
+	}
+`;
+
+var vert_shader = `
+	attribute vec3 aVertexPosition;
+	attribute vec4 aVertexColor;
+
+	uniform mat4 uMVMatrix;
+	uniform mat4 uPMatrix;
+
+	varying vec4 vColor;
+
+	void main(void) {
+		gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+		vColor = aVertexColor;
+	}
+`;
+
+function Shape(canvas) {
 	this.canvas = canvas;
 	this.shaderProgram = null;
 	this.mvMatrix = mat4.create();
@@ -20,7 +45,7 @@ function OGL(canvas) {
 	this.drawScene();
 }
 
-OGL.prototype.initGL = function(canvas) {
+Shape.prototype.initGL = function(canvas) {
 	try {
 		var gl = canvas.getContext("webgl");
 		gl.viewportWidth = canvas.width;
@@ -33,46 +58,33 @@ OGL.prototype.initGL = function(canvas) {
 	}
 }
 
-OGL.prototype.getShader = function(gl, id) {
-	var shaderScript = document.getElementById(id);
-	if (!shaderScript) {
-		return null;
-	}
-
-	var str = "";
-	var k = shaderScript.firstChild;
-	while (k) {
-		if (k.nodeType == 3) {
-			str += k.textContent;
-		}
-		k = k.nextSibling;
-	}
-
-	var shader;
-	if (shaderScript.type == "x-shader/x-fragment") {
-		shader = gl.createShader(gl.FRAGMENT_SHADER);
-	} else if (shaderScript.type == "x-shader/x-vertex") {
-		shader = gl.createShader(gl.VERTEX_SHADER);
-	} else {
-		return null;
-	}
-
-	gl.shaderSource(shader, str);
+Shape.prototype.compile_shader = function(shader, prog) {
+	var gl = this.gl;
+	gl.shaderSource(shader, prog);
 	gl.compileShader(shader);
 
 	if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-		alert(gl.getShaderInfoLog(shader));
-		return null;
+		throw prog + ":\n" + gl.getShaderInfoLog(shader);
 	}
+}
 
+Shape.prototype.compile_f_shader = function(prog) {
+	var shader = this.gl.createShader(this.gl.FRAGMENT_SHADER);
+	this.compile_shader(shader, prog);
 	return shader;
 }
 
-OGL.prototype.initShaders = function() {
+Shape.prototype.compile_v_shader = function(prog) {
+	var shader = this.gl.createShader(this.gl.VERTEX_SHADER);
+	this.compile_shader(shader, prog);
+	return shader;
+}
+
+Shape.prototype.initShaders = function() {
 	var gl = this.gl;
 
-	var fragmentShader = this.getShader(gl, "shader-fs");
-	var vertexShader = this.getShader(gl, "shader-vs");
+	var fragmentShader = this.compile_f_shader(frag_shader);
+	var vertexShader = this.compile_v_shader(vert_shader);
 
 	this.shaderProgram = gl.createProgram();
 	gl.attachShader(this.shaderProgram, vertexShader);
@@ -95,14 +107,14 @@ OGL.prototype.initShaders = function() {
 	this.shaderProgram.mvMatrixUniform = gl.getUniformLocation(this.shaderProgram, "uMVMatrix");
 }
 
-OGL.prototype.setMatrixUniforms = function() {
+Shape.prototype.setMatrixUniforms = function() {
 	var gl = this.gl;
 
 	gl.uniformMatrix4fv(this.shaderProgram.pMatrixUniform, false, this.pMatrix);
 	gl.uniformMatrix4fv(this.shaderProgram.mvMatrixUniform, false, this.mvMatrix);
 }
 
-OGL.prototype.initBuffers = function() {
+Shape.prototype.initBuffers = function() {
 	var gl = this.gl;
 
 	this.triangleVertexPositionBuffer = gl.createBuffer();
@@ -151,7 +163,7 @@ OGL.prototype.initBuffers = function() {
 	this.squareVertexColorBuffer.numItems = 4;
 }
 
-OGL.prototype.drawScene = function() {
+Shape.prototype.drawScene = function() {
 	var gl = this.gl;
 
 	gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
@@ -188,5 +200,5 @@ OGL.prototype.drawScene = function() {
 
 function webGLStart() {
 	var canvas = document.getElementById("lesson02-canvas");
-	var ogl = new OGL(canvas);
+	var ogl = new Shape(canvas);
 }
