@@ -23,11 +23,9 @@ var vert_shader = `
 	}
 `;
 
-function Shape(canvas) {
+function Shape(canvas, cam_dist) {
 	this.canvas = canvas;
 	this.shaderProgram = null;
-	this.mvMatrix = mat4.create();
-	this.pMatrix = mat4.create();
 
 	this.triangleVertexPositionBuffer = null;
 	this.triangleVertexColorBuffer = null;
@@ -35,6 +33,7 @@ function Shape(canvas) {
 	this.squareVertexColorBuffer = null;
 
 	this.initGL(canvas);
+	this.gl_init(cam_dist);
 	this.initShaders();
 	this.initBuffers();
 
@@ -45,11 +44,22 @@ function Shape(canvas) {
 	this.drawScene();
 }
 
+Shape.prototype.gl_init = function(cam_dist) {
+	var gl = this.gl;
+	gl.proj_mat = mat4.create();
+	gl.pos_mat = mat4.create();
+	gl.mat_stack = [];
+	gl.cam_dist = cam_dist;
+
+	gl.clearColor(0.0, 0.0, 0.0, 1.0);
+	gl.enable(gl.DEPTH_TEST);
+}
+
 Shape.prototype.initGL = function(canvas) {
 	try {
 		var gl = canvas.getContext("webgl");
-		gl.viewportWidth = canvas.width;
-		gl.viewportHeight = canvas.height;
+		gl.viewport_width = canvas.width;
+		gl.viewport_height = canvas.height;
 		this.gl = gl;
 	} catch (e) {
 	}
@@ -110,8 +120,8 @@ Shape.prototype.initShaders = function() {
 Shape.prototype.setMatrixUniforms = function() {
 	var gl = this.gl;
 
-	gl.uniformMatrix4fv(this.shaderProgram.pMatrixUniform, false, this.pMatrix);
-	gl.uniformMatrix4fv(this.shaderProgram.mvMatrixUniform, false, this.mvMatrix);
+	gl.uniformMatrix4fv(this.shaderProgram.pMatrixUniform, false, gl.proj_mat);
+	gl.uniformMatrix4fv(this.shaderProgram.mvMatrixUniform, false, gl.pos_mat);
 }
 
 Shape.prototype.initBuffers = function() {
@@ -166,18 +176,15 @@ Shape.prototype.initBuffers = function() {
 Shape.prototype.drawScene = function() {
 	var gl = this.gl;
 
-	gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+	gl.viewport(0, 0, gl.viewport_width, gl.viewport_height);
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-	// Update: mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, this.pMatrix); mat4.perspective() API has changed.
-	mat4.perspective (this.pMatrix, 45.0, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0);
+	mat4.perspective (gl.proj_mat,
+		45.0, gl.viewport_width / gl.viewport_height, 0.1, gl.cam_dist);
 
-	mat4.identity(this.mvMatrix);
+	mat4.identity(gl.pos_mat);
 
-	// Update: mat4.translate(this.mvMatrix, [-1.5, 0.0, -7.0]); mat4.translate() API has changed to mat4.translate(out, a, v)
-	// where out is the receiving matrix, a is the matrix to translate, and v is the vector to translate by. z altered to
-	// approximate original scene.
-	mat4.translate(this.mvMatrix, this.mvMatrix, [-1.5, 0.0, -5.4]);
+	mat4.translate(gl.pos_mat, gl.pos_mat, [-1.5, 0.0, -5.4]);
 	gl.bindBuffer(gl.ARRAY_BUFFER, this.triangleVertexPositionBuffer);
 	gl.vertexAttribPointer(this.shaderProgram.vertexPositionAttribute, this.triangleVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
@@ -187,7 +194,7 @@ Shape.prototype.drawScene = function() {
 	this.setMatrixUniforms();
 	gl.drawArrays(gl.TRIANGLES, 0, this.triangleVertexPositionBuffer.numItems);
 
-	mat4.translate(this.mvMatrix, this.mvMatrix, [3.0, 0.0, 0.0]);
+	mat4.translate(gl.pos_mat, gl.pos_mat, [3.0, 0.0, 0.0]);
 	gl.bindBuffer(gl.ARRAY_BUFFER, this.squareVertexPositionBuffer);
 	gl.vertexAttribPointer(this.shaderProgram.vertexPositionAttribute, this.squareVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
@@ -200,5 +207,5 @@ Shape.prototype.drawScene = function() {
 
 function webGLStart() {
 	var canvas = document.getElementById("lesson02-canvas");
-	var ogl = new Shape(canvas);
+	var ogl = new Shape(canvas, 100);
 }
