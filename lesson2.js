@@ -9,17 +9,17 @@ var frag_shader = `
 `;
 
 var vert_shader = `
-	attribute vec3 aVertexPosition;
-	attribute vec4 aVertexColor;
+	attribute vec3 v_pos_attr;
+	attribute vec4 v_col_attr;
 
-	uniform mat4 uMVMatrix;
-	uniform mat4 uPMatrix;
+	uniform mat4 pos_mat;
+	uniform mat4 proj_mat;
 
 	varying vec4 vColor;
 
 	void main(void) {
-		gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
-		vColor = aVertexColor;
+		gl_Position = proj_mat * pos_mat * vec4(v_pos_attr, 1.0);
+		vColor = v_col_attr;
 	}
 `;
 
@@ -31,7 +31,7 @@ function Shape(canvas, cam_dist) {
 
 	this.initGL(canvas);
 	this.gl_init(cam_dist);
-	this.initShaders();
+	this.gl.shader_prog = this.get_shader_prog();
 	this.init_buffers();
 
 	var gl = this.gl;
@@ -87,31 +87,33 @@ Shape.prototype.compile_v_shader = function(prog) {
 	return shader;
 }
 
-Shape.prototype.initShaders = function() {
+Shape.prototype.get_shader_prog = function() {
 	var gl = this.gl;
 
-	var fragmentShader = this.compile_f_shader(frag_shader);
-	var vertexShader = this.compile_v_shader(vert_shader);
+	var f_shader = this.compile_f_shader(frag_shader);
+	var v_shader = this.compile_v_shader(vert_shader);
 
-	gl.shader_prog = gl.createProgram();
-	gl.attachShader(gl.shader_prog, vertexShader);
-	gl.attachShader(gl.shader_prog, fragmentShader);
-	gl.linkProgram(gl.shader_prog);
+	shader_prog = gl.createProgram();
+	gl.attachShader(shader_prog, v_shader);
+	gl.attachShader(shader_prog, f_shader);
+	gl.linkProgram(shader_prog);
 
-	if (!gl.getProgramParameter(gl.shader_prog, gl.LINK_STATUS)) {
-		alert("Could not initialise shaders");
+	if (!gl.getProgramParameter(shader_prog, gl.LINK_STATUS)) {
+		throw "Error initialising shaders";
 	}
 
-	gl.useProgram(gl.shader_prog);
+	gl.useProgram(shader_prog);
 
-	gl.shader_prog.v_pos_attr = gl.getAttribLocation(gl.shader_prog, "aVertexPosition");
-	gl.enableVertexAttribArray(gl.shader_prog.v_pos_attr);
+	shader_prog.v_pos_attr = gl.getAttribLocation(shader_prog, "v_pos_attr");
+	gl.enableVertexAttribArray(shader_prog.v_pos_attr);
 
-	gl.shader_prog.v_col_attr = gl.getAttribLocation(gl.shader_prog, "aVertexColor");
-	gl.enableVertexAttribArray(gl.shader_prog.v_col_attr);
+	shader_prog.v_col_attr = gl.getAttribLocation(shader_prog, "v_col_attr");
+	gl.enableVertexAttribArray(shader_prog.v_col_attr);
 
-	gl.shader_prog.proj_mat = gl.getUniformLocation(gl.shader_prog, "uPMatrix");
-	gl.shader_prog.pos_mat = gl.getUniformLocation(gl.shader_prog, "uMVMatrix");
+	shader_prog.proj_mat = gl.getUniformLocation(shader_prog, "proj_mat");
+	shader_prog.pos_mat = gl.getUniformLocation(shader_prog, "pos_mat");
+
+	return shader_prog;
 }
 
 Shape.prototype.init_buffers = function() {
