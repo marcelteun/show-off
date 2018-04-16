@@ -23,13 +23,20 @@ var vert_shader = `
 	}
 `;
 
-function Shape(canvas, cam_dist) {
-	this.canvas = canvas;
+function create_gl_context(id) {
+	var canvas = document.getElementById(id);
 
+	var ctx = canvas.getContext("webgl");
+	ctx.viewport_width = canvas.width;
+	ctx.viewport_height = canvas.height;
+	return ctx;
+}
+
+function Shape(canvas_id, cam_dist) {
 	this.squareVertexPositionBuffer = null;
 	this.squareVertexColorBuffer = null;
 
-	this.initGL(canvas);
+	this.gl = create_gl_context(canvas_id);
 	this.gl_init(cam_dist);
 	this.gl.shader_prog = this.get_shader_prog();
 	this.init_buffers();
@@ -50,19 +57,6 @@ Shape.prototype.gl_init = function(cam_dist) {
 
 	gl.clearColor(0.0, 0.0, 0.0, 1.0);
 	gl.enable(gl.DEPTH_TEST);
-}
-
-Shape.prototype.initGL = function(canvas) {
-	try {
-		var gl = canvas.getContext("webgl");
-		gl.viewport_width = canvas.width;
-		gl.viewport_height = canvas.height;
-		this.gl = gl;
-	} catch (e) {
-	}
-	if (!gl) {
-		alert("Could not initialise WebGL, sorry :-(");
-	}
 }
 
 Shape.prototype.compile_shader = function(shader, prog) {
@@ -178,6 +172,5 @@ Shape.prototype.draw = function() {
 }
 
 function webGLStart() {
-	var canvas = document.getElementById("lesson02-canvas");
-	var ogl = new Shape(canvas, 100);
+	var ogl = new Shape("lesson02-canvas", 100);
 }
