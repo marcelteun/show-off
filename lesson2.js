@@ -1,3 +1,7 @@
+function draw_shape(canvas_id, cam_dist) {
+	var ogl = new Shape(canvas_id, cam_dist);
+}
+
 var frag_shader = `
 	precision mediump float;
 
@@ -161,8 +165,4 @@ Shape.prototype.draw = function() {
 	gl.drawArrays(gl.TRIANGLES, 0, gl.vs.no_of_elem);
 
 	//mvPopMatrix();
-}
-
-function webGLStart() {
-	var ogl = new Shape("lesson02-canvas", 100);
 }
