@@ -33,18 +33,10 @@ function create_gl_context(id) {
 }
 
 function Shape(canvas_id, cam_dist) {
-	this.squareVertexPositionBuffer = null;
-	this.squareVertexColorBuffer = null;
-
 	this.gl = create_gl_context(canvas_id);
 	this.gl_init(cam_dist);
 	this.gl.shader_prog = this.get_shader_prog();
 	this.init_buffers();
-
-	var gl = this.gl;
-	gl.clearColor(0.0, 0.0, 0.0, 1.0);
-	gl.enable(gl.DEPTH_TEST);
-
 	this.draw();
 }
 
