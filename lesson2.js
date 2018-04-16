@@ -32,7 +32,7 @@ function Shape(canvas, cam_dist) {
 	this.initGL(canvas);
 	this.gl_init(cam_dist);
 	this.initShaders();
-	this.initBuffers();
+	this.init_buffers();
 
 	var gl = this.gl;
 	gl.clearColor(0.0, 0.0, 0.0, 1.0);
@@ -114,7 +114,7 @@ Shape.prototype.initShaders = function() {
 	gl.shader_prog.pos_mat = gl.getUniformLocation(gl.shader_prog, "uMVMatrix");
 }
 
-Shape.prototype.initBuffers = function() {
+Shape.prototype.init_buffers = function() {
 	var gl = this.gl;
 
 	gl.vs = gl.createBuffer();
@@ -138,29 +138,6 @@ Shape.prototype.initBuffers = function() {
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
 	gl.v_cols.elem_len = 4;
 	gl.v_cols.no_of_elem = 3;
-
-
-	this.squareVertexPositionBuffer = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, this.squareVertexPositionBuffer);
-	vertices = [
-		 1.0,  1.0,  0.0,
-		-1.0,  1.0,  0.0,
-		 1.0, -1.0,  0.0,
-		-1.0, -1.0,  0.0
-	];
-	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-	this.squareVertexPositionBuffer.elem_len = 3;
-	this.squareVertexPositionBuffer.no_of_elem = 4;
-
-	this.squareVertexColorBuffer = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, this.squareVertexColorBuffer);
-	colors = [];
-	for (var i=0; i < 4; i++) {
-		colors = colors.concat([0.5, 0.5, 1.0, 1.0]);
-	}
-	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW);
-	this.squareVertexColorBuffer.elem_len = 4;
-	this.squareVertexColorBuffer.no_of_elem = 4;
 }
 
 Shape.prototype.draw = function() {
