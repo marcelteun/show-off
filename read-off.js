@@ -274,9 +274,9 @@ Shape.prototype.triangulate = function() {
 		}
 		no_vs += f.length;
 		fs = fs.concat(tris_1_face);
-		console.log('triangulate face', n, tris_1_face);
 	}
 	var gl = this.gl
+
 	gl.vs = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, gl.vs);
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vs), gl.STATIC_DRAW);
@@ -326,10 +326,12 @@ Shape.prototype.draw = function() {
 	gl.vertexAttribPointer(gl.shader_prog.v_col_attr,
 		gl.v_cols.elem_len, gl.FLOAT, false, 0, 0);
 
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.fs);
+
 	gl.uniformMatrix4fv(gl.shader_prog.proj_mat, false, gl.proj_mat);
 	gl.uniformMatrix4fv(gl.shader_prog.pos_mat, false, gl.pos_mat);
 
-	gl.drawArrays(gl.TRIANGLES, 0, gl.vs.no_of_elem);
+	gl.drawElements(gl.TRIANGLES, gl.fs.no_of_elem, gl.UNSIGNED_SHORT, 0);
 
 	//mvPopMatrix();
 }
