@@ -46,11 +46,12 @@ function Shape(off_file, canvas_id, cam_dist) {
 	 */
 	this.off_file = off_file;
 	this.gl = create_gl_context(canvas_id);
+	this.gl.my = {};
 	var this_ = this; // define var the reach inside call-back
 	$.get(off_file, function(data) {
 		this_.get_off_shape(data);
 		this_.gl_init(cam_dist);
-		this_.gl.shader_prog = this_.get_shader_prog();
+		this_.gl.my.shader_prog = this_.get_shader_prog();
 		this_.triangulate();
 		this_.draw();
 	});
@@ -166,10 +167,10 @@ Shape.prototype.get_off_shape = function(data) {
 
 Shape.prototype.gl_init = function(cam_dist) {
 	var gl = this.gl;
-	gl.proj_mat = mat4.create();
-	gl.pos_mat = mat4.create();
-	gl.mat_stack = [];
-	gl.cam_dist = cam_dist;
+	gl.my.proj_mat = mat4.create();
+	gl.my.pos_mat = mat4.create();
+	gl.my.pos_mat_stack = [];
+	gl.my.cam_dist = cam_dist;
 
 	gl.clearColor(0.0, 0.0, 0.0, 1.0);
 	gl.enable(gl.DEPTH_TEST);
@@ -229,8 +230,8 @@ Shape.prototype.get_shader_prog = function() {
 Shape.prototype.triangulate = function() {
 	/*
 	 * Divide all the faces in this.Fs, this.Vs and this.cols into
-	 * triangles and save in the result in this.gl.vs, this.gl.v_cols, and
-	 * this.gl.fs.
+	 * triangles and save in the result in this.gl.my.vs, this.gl.my.v_cols,
+	 * and this.gl.my.fs.
 	 *
 	 * this: should contain:
 	 *        - Vs: array of vertices, each element is a 3 dimensional array
@@ -241,20 +242,17 @@ Shape.prototype.triangulate = function() {
 	 *          the face with the same index in Fs has the specified colour.
 	 *          Each colour is an array of RGB values 0 <= colour <= 1.
 	 * Result:
-	 *        this.gl.vs: an OpenGL vertex buffer object with the fields
-	 *                     elem_len  and no_of_elem. The latter expresses
-	 *                     the amount of vertices, the former the length per
-	 *                     vertex.
-	 *        this.gl.vcols: an OpenGL vertex colour buffer object with the
-	 *                        fields elem_len and no_of_elem. The latter
-	 *                        expresses the amount of vertices, the former
-	 *                        the length per vertex. Numitems should be
-	 *                        equal to this.gl.vs.no_of_elem
-	 *        this.gl.fs: an OpenGL face buffer object with the fields
-	 *                     elem_len  and no_of_elem. The latter expresses
-	 *                     the amount of face indices, the former the length
-	 *                     per index (i.e. 1). Each triplet forms a
-	 *                     triangle.
+	 *        this.gl.my.vs: an OpenGL vertex buffer object with the fields
+	 *            elem_len and no_of_elem. The latter expresses the amount
+	 *            of vertices, the former the length per vertex.
+	 *        this.gl.my.v_cols: an OpenGL vertex colour buffer object with
+	 *            the fields elem_len and no_of_elem. The latter expresses
+	 *            the amount of vertices, the former the length per vertex.
+	 *            Numitems should be equal to this.gl.my.vs.no_of_elem
+	 *        this.gl.my.fs: an OpenGL face buffer object with the fields
+	 *            elem_len  and no_of_elem. The latter expresses the amount
+	 *            of face indices, the former the length per index (i.e. 1).
+	 *            Each triplet forms a triangle.
 	 */
 	var fs = [];
 	var vs = [];
@@ -277,26 +275,23 @@ Shape.prototype.triangulate = function() {
 	}
 	var gl = this.gl
 
-	gl.vs = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, gl.vs);
+	gl.my.vs = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.vs);
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vs), gl.STATIC_DRAW);
-	gl.vs.elem_len = 3;
-	gl.vs.no_of_elem = no_vs;
-	this.gl.vs = gl.vs;
+	gl.my.vs.elem_len = 3;
+	gl.my.vs.no_of_elem = no_vs;
 
-	gl.v_cols = gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, gl.v_cols);
+	gl.my.v_cols = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.v_cols);
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cols), gl.STATIC_DRAW);
-	gl.v_cols.elem_len = 4;
-	gl.v_cols.no_of_elem = no_vs;
-	this.gl.v_cols = gl.v_cols;
+	gl.my.v_cols.elem_len = 4;
+	gl.my.v_cols.no_of_elem = no_vs;
 
-	gl.fs = gl.createBuffer();
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.fs);
+	gl.my.fs = gl.createBuffer();
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.my.fs);
 	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(fs), gl.STATIC_DRAW);
-	gl.fs.elem_len = 1;
-	gl.fs.no_of_elem = fs.length;
-	this.gl.fs = gl.fs;
+	gl.my.fs.elem_len = 1;
+	gl.my.fs.no_of_elem = fs.length;
 }
 
 Shape.prototype.draw = function() {
@@ -305,11 +300,11 @@ Shape.prototype.draw = function() {
 	gl.viewport(0, 0, gl.viewport_width, gl.viewport_height);
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-	mat4.perspective(gl.proj_mat,
-		45.0, gl.viewport_width / gl.viewport_height, 0.1, gl.cam_dist);
+	mat4.perspective(gl.my.proj_mat,
+		45.0, gl.viewport_width / gl.viewport_height, 0.1, gl.my.cam_dist);
 
-	mat4.identity(gl.pos_mat);
-	mat4.translate(gl.pos_mat, gl.pos_mat, [-1.5, 0.0, -5.4]);
+	mat4.identity(gl.my.pos_mat);
+	mat4.translate(gl.my.pos_mat, gl.my.pos_mat, [-1.5, 0.0, -5.4]);
 
 	/*
 	mvPushMatrix();
@@ -318,20 +313,20 @@ Shape.prototype.draw = function() {
 	mat4.rotate(mvMatrix, mvMatrix, degToRad(rPyramid), [0, 1, 0]);
 	*/
 
-	gl.bindBuffer(gl.ARRAY_BUFFER, gl.vs);
-	gl.vertexAttribPointer(gl.shader_prog.v_pos_attr,
-		gl.vs.elem_len, gl.FLOAT, false, 0, 0);
+	gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.vs);
+	gl.vertexAttribPointer(gl.my.shader_prog.v_pos_attr,
+		gl.my.vs.elem_len, gl.FLOAT, false, 0, 0);
 
-	gl.bindBuffer(gl.ARRAY_BUFFER, gl.v_cols);
-	gl.vertexAttribPointer(gl.shader_prog.v_col_attr,
-		gl.v_cols.elem_len, gl.FLOAT, false, 0, 0);
+	gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.v_cols);
+	gl.vertexAttribPointer(gl.my.shader_prog.v_col_attr,
+		gl.my.v_cols.elem_len, gl.FLOAT, false, 0, 0);
 
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.fs);
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.my.fs);
 
-	gl.uniformMatrix4fv(gl.shader_prog.proj_mat, false, gl.proj_mat);
-	gl.uniformMatrix4fv(gl.shader_prog.pos_mat, false, gl.pos_mat);
+	gl.uniformMatrix4fv(gl.my.shader_prog.proj_mat, false, gl.my.proj_mat);
+	gl.uniformMatrix4fv(gl.my.shader_prog.pos_mat, false, gl.my.pos_mat);
 
-	gl.drawElements(gl.TRIANGLES, gl.fs.no_of_elem, gl.UNSIGNED_SHORT, 0);
+	gl.drawElements(gl.TRIANGLES, gl.my.fs.no_of_elem, gl.UNSIGNED_SHORT, 0);
 
 	//mvPopMatrix();
 }
