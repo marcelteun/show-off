@@ -1,3 +1,5 @@
+var DEG2RAD = Math.PI/360;
+
 function draw_shape(off_file, canvas_id, cam_dist) {
 	 var ogl = new Shape(off_file, canvas_id, cam_dist);
 }
@@ -47,13 +49,15 @@ function Shape(off_file, canvas_id, cam_dist) {
 	this.off_file = off_file;
 	this.gl = create_gl_context(canvas_id);
 	this.gl.my = {};
+	this.angle = 0;
+	this.before = 0;
 	var this_ = this; // define var the reach inside call-back
 	$.get(off_file, function(data) {
 		this_.get_off_shape(data);
 		this_.gl_init(cam_dist);
 		this_.gl.my.shader_prog = this_.get_shader_prog();
 		this_.triangulate();
-		this_.draw();
+		this_.animate();
 	});
 }
 
@@ -294,24 +298,35 @@ Shape.prototype.triangulate = function() {
 	gl.my.fs.no_of_elem = fs.length;
 }
 
+Shape.prototype.pos_mat_push = function() {
+	var cp = mat4.create();
+	mat4.copy(cp, this.gl.my.pos_mat);
+	this.gl.my.pos_mat_stack.push(cp);
+}
+
+Shape.prototype.pos_mat_pop = function() {
+	if (this.gl.my.pos_mat.length == 0) {
+		throw "cannot pop pos matrix: stack empty!";
+        }
+	this.gl.my.pos_mat = this.gl.my.pos_mat_stack.pop();
+}
+
 Shape.prototype.draw = function() {
 	var gl = this.gl;
 
 	gl.viewport(0, 0, gl.viewport_width, gl.viewport_height);
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+	/* TODO: get max R value and add to cam_dist (+ some margin) */
 	mat4.perspective(gl.my.proj_mat,
-		45.0, gl.viewport_width / gl.viewport_height, 0.1, gl.my.cam_dist);
+		45.0, gl.viewport_width / gl.viewport_height, 0.1, 4*gl.my.cam_dist);
 
 	mat4.identity(gl.my.pos_mat);
-	mat4.translate(gl.my.pos_mat, gl.my.pos_mat, [-1.5, 0.0, -5.4]);
+	mat4.translate(gl.my.pos_mat, gl.my.pos_mat, [0.0, 0.0, -gl.my.cam_dist]);
 
-	/*
-	mvPushMatrix();
-	// Update: mat4.rotate(mvMatrix, degToRad(rPyramid), [0, 1, 0]); mat4.rotate() API has changed to mat4.rotate(out, a, rad, axis)
-        // where out is the receiving matrix and a is the matrix to rotate.
-	mat4.rotate(mvMatrix, mvMatrix, degToRad(rPyramid), [0, 1, 0]);
-	*/
+	this.pos_mat_push();
+	/* TODO: get angle and speed from HTML file */
+	mat4.rotate(gl.my.pos_mat, gl.my.pos_mat, this.angle*DEG2RAD, [0.25, 1, 0]);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.vs);
 	gl.vertexAttribPointer(gl.my.shader_prog.v_pos_attr,
@@ -328,7 +343,23 @@ Shape.prototype.draw = function() {
 
 	gl.drawElements(gl.TRIANGLES, gl.my.fs.no_of_elem, gl.UNSIGNED_SHORT, 0);
 
-	//mvPopMatrix();
+	this.pos_mat_pop();
+}
+
+Shape.prototype.rotate = function() {
+	var now = new Date().getTime();
+	if (this.before != 0) {
+		var diff = now - this.before;
+
+		this.angle += (60 * diff) / 1000.0;
+	}
+	this.before = now;
+}
+
+Shape.prototype.animate = function() {
+	requestAnimFrame(() => this.animate());
+	this.rotate();
+	this.draw();
 }
 
 // vim: set noexpandtab sw=8
