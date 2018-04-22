@@ -4,30 +4,68 @@ function draw_shape(off_file, canvas_id, cam_dist) {
 	 var ogl = new Shape(off_file, canvas_id, cam_dist);
 }
 
+var scene = {
+	/* ambient light */
+	'light_ambient_r': 0.4,
+	'light_ambient_g': 0.4,
+	'light_ambient_b': 0.4,
+
+	/* directional light (will be normalized `*/
+	'light_dir_1': [-.2, -.2, -1],
+	'light_dir_1_r': 0.6,
+	'light_dir_1_g': 0.6,
+	'light_dir_1_b': 0.6,
+};
+
 var frag_shader = `
 	precision mediump float;
 
-	varying vec4 vColor;
+	varying vec4 v_col;
+	varying vec3 v_light_weight;
 
 	void main(void) {
-		gl_FragColor = vColor;
+		gl_FragColor = vec4(v_light_weight * v_col.rgb, v_col.a);
 	}
 `;
 
 var vert_shader = `
 	attribute vec3 v_pos_attr;
+	attribute vec3 norms_attr;
 	attribute vec4 v_col_attr;
 
 	uniform mat4 pos_mat;
 	uniform mat4 proj_mat;
+	uniform mat3 norm_mat;
 
-	varying vec4 vColor;
+	uniform vec3 lgt_ambient_col;
+	uniform vec3 lgt_dir_1;
+	uniform vec3 lgt_dir_1_col;
+
+	varying vec4 v_col;
+	varying vec3 v_light_weight;
 
 	void main(void) {
 		gl_Position = proj_mat * pos_mat * vec4(v_pos_attr, 1.0);
-		vColor = v_col_attr;
+		v_col = v_col_attr;
+		vec3 norm = norm_mat * norms_attr;
+		float w_lgt_dir_1 = max(dot(norm, lgt_dir_1), 0.0);
+		v_light_weight = lgt_ambient_col + lgt_dir_1_col * w_lgt_dir_1;
 	}
 `;
+
+function triangle_normal(n, v0, v1, v2) {
+	var d1 = vec3.create();
+	var d2 = vec3.create();
+	vec3.subtract(d1, v1, v0);
+	vec3.subtract(d2, v2, v0);
+	vec3.cross(n, d1, d2);
+	vec3.normalize(n, n);
+	/* Let the normal always point out */
+	if (vec3.len(vec3.add(d1, v0, n)) < vec3.len(v0)) {
+		vec3.negate(n, n);
+	}
+	return n;
+}
 
 function create_gl_context(id) {
 	var canvas = document.getElementById(id);
@@ -222,11 +260,22 @@ Shape.prototype.get_shader_prog = function() {
 	shader_prog.v_pos_attr = gl.getAttribLocation(shader_prog, "v_pos_attr");
 	gl.enableVertexAttribArray(shader_prog.v_pos_attr);
 
+	shader_prog.norms_attr = gl.getAttribLocation(shader_prog, "norms_attr");
+	gl.enableVertexAttribArray(shader_prog.norms_attr);
+
 	shader_prog.v_col_attr = gl.getAttribLocation(shader_prog, "v_col_attr");
 	gl.enableVertexAttribArray(shader_prog.v_col_attr);
 
 	shader_prog.proj_mat = gl.getUniformLocation(shader_prog, "proj_mat");
 	shader_prog.pos_mat = gl.getUniformLocation(shader_prog, "pos_mat");
+	shader_prog.norm_mat = gl.getUniformLocation(shader_prog, "norm_mat");
+
+	shader_prog.lgt_ambient_col = gl.getUniformLocation(shader_prog,
+							"lgt_ambient_col");
+        shader_prog.lgt_dir_1 = gl.getUniformLocation(shader_prog,
+							"lgt_dir_1");
+        shader_prog.lgt_dir_1_col = gl.getUniformLocation(shader_prog,
+							"lgt_dir_1_col");
 
 	return shader_prog;
 }
@@ -253,6 +302,9 @@ Shape.prototype.triangulate = function() {
 	 *            the fields elem_len and no_of_elem. The latter expresses
 	 *            the amount of vertices, the former the length per vertex.
 	 *            Numitems should be equal to this.gl.my.vs.no_of_elem
+	 *        this.gl.my.ns: an OpenGL normals buffer object with the fields
+	 *            elem_len and no_of_elem that specifies the normal to be
+	 *            used for that vertex.
 	 *        this.gl.my.fs: an OpenGL face buffer object with the fields
 	 *            elem_len  and no_of_elem. The latter expresses the amount
 	 *            of face indices, the former the length per index (i.e. 1).
@@ -260,14 +312,19 @@ Shape.prototype.triangulate = function() {
 	 */
 	var fs = [];
 	var vs = [];
+	var ns = [];
 	var cols = [];
 	var no_vs = 0;
-	for (var n = 0; n < this.Fs.length; n++) {
-		var f = this.Fs[n];
-		// add colour and vertices per face (as 1 dimensional list):
+	for (var j = 0; j < this.Fs.length; j++) {
+		var f = this.Fs[j];
+		var n = vec3.create();
+		triangle_normal(n,
+			this.Vs[f[0]], this.Vs[f[1]], this.Vs[f[2]]);
 		for (var i = 0; i < f.length; i++) {
 			vs = vs.concat(this.Vs[f[i]]);
-			cols = cols.concat(this.cols[n]);
+			cols = cols.concat(this.cols[j]);
+			/* convert to std Array, otherwise concat doesn't work */
+			ns = ns.concat(Array.prototype.slice.call(n));
 		}
 		var tris_1_face = [];
 		for (var i = 1; i < f.length - 1; i++) {
@@ -290,6 +347,12 @@ Shape.prototype.triangulate = function() {
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cols), gl.STATIC_DRAW);
 	gl.my.v_cols.elem_len = 4;
 	gl.my.v_cols.no_of_elem = no_vs;
+
+	gl.my.ns = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.ns);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(ns), gl.STATIC_DRAW);
+	gl.my.ns.elem_len = 3;
+	gl.my.ns.no_of_elem = no_vs;
 
 	gl.my.fs = gl.createBuffer();
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.my.fs);
@@ -332,6 +395,10 @@ Shape.prototype.draw = function() {
 	gl.vertexAttribPointer(gl.my.shader_prog.v_pos_attr,
 		gl.my.vs.elem_len, gl.FLOAT, false, 0, 0);
 
+	gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.ns);
+	gl.vertexAttribPointer(gl.my.shader_prog.norms_attr,
+		gl.my.ns.elem_len, gl.FLOAT, false, 0, 0);
+
 	gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.v_cols);
 	gl.vertexAttribPointer(gl.my.shader_prog.v_col_attr,
 		gl.my.v_cols.elem_len, gl.FLOAT, false, 0, 0);
@@ -340,6 +407,25 @@ Shape.prototype.draw = function() {
 
 	gl.uniformMatrix4fv(gl.my.shader_prog.proj_mat, false, gl.my.proj_mat);
 	gl.uniformMatrix4fv(gl.my.shader_prog.pos_mat, false, gl.my.pos_mat);
+
+	var norm_mat = mat3.create();
+	mat3.normalFromMat4(norm_mat, gl.my.pos_mat);
+	gl.uniformMatrix3fv(gl.my.shader_prog.norm_mat, false, norm_mat);
+
+	gl.uniform3f(gl.my.shader_prog.lgt_ambient_col,
+		 scene['light_ambient_r'],
+		 scene['light_ambient_g'],
+		 scene['light_ambient_b']);
+	var light_dir_1 = vec3.create();
+	vec3.normalize(light_dir_1, scene['light_dir_1']);
+	/* incoming light -> source of light */
+	vec3.scale(light_dir_1, light_dir_1, -1);
+	gl.uniform3fv(gl.my.shader_prog.lgt_dir_1, light_dir_1);
+	gl.uniform3f(
+		gl.my.shader_prog.lgt_dir_1_col,
+		scene['light_dir_1_r'],
+		scene['light_dir_1_g'],
+		scene['light_dir_1_b']);
 
 	gl.drawElements(gl.TRIANGLES, gl.my.fs.no_of_elem, gl.UNSIGNED_SHORT, 0);
 
