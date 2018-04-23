@@ -95,7 +95,7 @@ function Shape(off_file, canvas_id, cam_dist) {
 		this_.gl_init(cam_dist);
 		this_.gl.my.shader_prog = this_.get_shader_prog();
 		this_.triangulate();
-		this_.animate();
+		this_.on_paint();
 	});
 }
 
@@ -442,8 +442,8 @@ Shape.prototype.rotate = function() {
 	this.before = now;
 }
 
-Shape.prototype.animate = function() {
-	requestAnimFrame(() => this.animate());
+Shape.prototype.on_paint = function() {
+	requestAnimFrame(() => this.on_paint());
 	this.rotate();
 	this.draw();
 }
