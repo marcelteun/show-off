@@ -1,4 +1,5 @@
 var DEG2RAD = Math.PI/360;
+var ARC_SCALE = 0.8; /* limit to switch rotation type for mouse */
 
 function draw_shape(off_file, canvas_id, cam_dist) {
 	 var ogl = new Shape(off_file, canvas_id, cam_dist);
@@ -75,12 +76,12 @@ function triangle_normal(n, v0, v1, v2) {
 	return n;
 }
 
-function create_gl_context(id) {
-	var canvas = document.getElementById(id);
-
+function create_gl_context(canvas) {
 	var ctx = canvas.getContext("webgl");
-	ctx.viewport_width = canvas.width;
-	ctx.viewport_height = canvas.height;
+	ctx.my = {};
+	ctx.my.viewport_width = canvas.width;
+	ctx.my.viewport_height = canvas.height;
+
 	return ctx;
 }
 
@@ -93,9 +94,13 @@ function Shape(off_file, canvas_id, cam_dist) {
 	 * cam_dist: the distance of the camera
 	 */
 	this.off_file = off_file;
-	this.gl = create_gl_context(canvas_id);
-	this.gl.my = {};
-	this.angle = 0;
+	this.canvas = document.getElementById(canvas_id);
+	this.gl = create_gl_context(this.canvas);
+	/* rotation while dragging mouse: */
+	this.q_drag_rot = quat.create();
+	/* current rotation after latest mouse_up: */
+	this.q_cur_rot = quat.create();
+	this.axis = vec3.create();
 	this.before = 0;
 	var this_ = this; // define var the reach inside call-back
 	$.get(off_file, function(data) {
@@ -215,15 +220,95 @@ Shape.prototype.get_off_shape = function(data) {
 	}
 }
 
+Shape.prototype.xy_to_sphere_pos = function(x, y) {
+	var result;
+	x = x - this.gl.my.viewport_width/2;
+	y = y - this.gl.my.viewport_height/2;
+	y = -y;
+	len2 = x * x + y * y;
+	if (len2 > this.gl.my.arc_r2) {
+		/* rotate around z-axis */
+		var scale = Math.sqrt(this.gl.my.arc_r2/len2);
+		result = vec3.fromValues(scale * x, scale * y, 0);
+	} else {
+		/* r^2 = x^2 + y^2 + z^2 */
+		result = vec3.fromValues(x, y, Math.sqrt(this.gl.my.arc_r2-len2));
+	}
+	/* required for quat.rotationTo */
+	vec3.normalize(result, result);
+	return result;
+}
+
+Shape.prototype.calc_mouse_rot = function(evt) {
+	new_sphere_pos = this.xy_to_sphere_pos(evt.clientX, evt.clientY)
+	var result = quat.create();
+	quat.rotationTo(result, this.org_sphere_pos, new_sphere_pos);
+	var m = mat3.create()
+	mat3.fromQuat(m, result);
+	return result;
+}
+
+Shape.prototype.on_mouse_down = function(evt) {
+	this.mouse_down = true;
+	this.org_sphere_pos = this.xy_to_sphere_pos(evt.clientX, evt.clientY);
+}
+
+Shape.prototype.on_mouse_up = function(evt) {
+	/*
+	 * Since mouse_up event is caught even outside the canvas, while
+	 * mouse_down is only caught inside the canvas, it can happen that this
+	 * event is received without an initial mouse_down
+	 */
+	if (!this.mouse_down) {
+		return;
+	}
+	var q_drag = this.calc_mouse_rot(evt);
+	quat.mul(this.q_cur_rot, q_drag, this.q_cur_rot);
+	mat4.fromRotationTranslation(
+		this.gl.my.pos_mat,
+		this.q_cur_rot, [0.0, 0.0, -this.gl.my.cam_dist]);
+	this.reset_mouse();
+	requestAnimFrame(() => this.on_paint());
+}
+
+Shape.prototype.on_mouse_move = function(evt) {
+	if (!this.mouse_down) {
+		return;
+	}
+	this.q_drag_rot = this.calc_mouse_rot(evt);
+	requestAnimFrame(() => this.on_paint());
+}
+
+Shape.prototype.reset_mouse = function() {
+	this.mouse_down = false;
+}
+
 Shape.prototype.gl_init = function(cam_dist) {
 	var gl = this.gl;
 	gl.my.proj_mat = mat4.create();
 	gl.my.pos_mat = mat4.create();
+	mat4.translate(gl.my.pos_mat, gl.my.pos_mat, [0.0, 0.0, -cam_dist]);
 	gl.my.pos_mat_stack = [];
 	gl.my.cam_dist = cam_dist;
 
+	r = ARC_SCALE * Math.min(gl.my.viewport_width, gl.my.viewport_height) / 2;
+	gl.my.arc_r2 = r*r;
+
 	gl.clearColor(0.0, 0.0, 0.0, 1.0);
 	gl.enable(gl.DEPTH_TEST);
+
+	this.reset_mouse();
+	var this_ = this
+	this.canvas.onmousedown = function(evt) {
+		this_.on_mouse_down(evt);
+	}
+	// Register move and release even outside the canvas
+	document.onmouseup = function(evt) {
+		this_.on_mouse_up(evt);
+	}
+	document.onmousemove =function(evt) {
+		this_.on_mouse_move(evt);
+	}
 }
 
 Shape.prototype.compile_shader = function(shader, prog) {
@@ -369,35 +454,23 @@ Shape.prototype.triangulate = function() {
 	gl.my.fs.no_of_elem = fs.length;
 }
 
-Shape.prototype.pos_mat_push = function() {
-	var cp = mat4.create();
-	mat4.copy(cp, this.gl.my.pos_mat);
-	this.gl.my.pos_mat_stack.push(cp);
-}
-
-Shape.prototype.pos_mat_pop = function() {
-	if (this.gl.my.pos_mat.length == 0) {
-		throw "cannot pop pos matrix: stack empty!";
-        }
-	this.gl.my.pos_mat = this.gl.my.pos_mat_stack.pop();
-}
-
 Shape.prototype.draw = function() {
 	var gl = this.gl;
 
-	gl.viewport(0, 0, gl.viewport_width, gl.viewport_height);
+	gl.viewport(0, 0, gl.my.viewport_width, gl.my.viewport_height);
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
 	/* TODO: get max R value and add to cam_dist (+ some margin) */
 	mat4.perspective(gl.my.proj_mat,
-		45.0, gl.viewport_width / gl.viewport_height, 0.1, 4*gl.my.cam_dist);
+		45.0, gl.my.viewport_width / gl.my.viewport_height, 0.1, 4*gl.my.cam_dist);
 
-	mat4.identity(gl.my.pos_mat);
-	mat4.translate(gl.my.pos_mat, gl.my.pos_mat, [0.0, 0.0, -gl.my.cam_dist]);
-
-	this.pos_mat_push();
-	/* TODO: get angle and speed from HTML file */
-	mat4.rotate(gl.my.pos_mat, gl.my.pos_mat, this.angle*DEG2RAD, [0.25, 1, 0]);
+	if (this.mouse_down) {
+		var q;
+		q = quat.create();
+		quat.mul(q, this.q_drag_rot, this.q_cur_rot);
+		mat4.fromRotationTranslation(
+			gl.my.pos_mat, q, [0.0, 0.0, -gl.my.cam_dist]);
+	}
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.vs);
 	gl.vertexAttribPointer(gl.my.shader_prog.v_pos_attr,
@@ -436,8 +509,6 @@ Shape.prototype.draw = function() {
 		scene['light_dir_1_b']);
 
 	gl.drawElements(gl.TRIANGLES, gl.my.fs.no_of_elem, gl.UNSIGNED_SHORT, 0);
-
-	this.pos_mat_pop();
 }
 
 Shape.prototype.rotate = function() {
@@ -451,8 +522,6 @@ Shape.prototype.rotate = function() {
 }
 
 Shape.prototype.on_paint = function() {
-	requestAnimFrame(() => this.on_paint());
-	this.rotate();
 	this.draw();
 }
 
