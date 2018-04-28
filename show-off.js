@@ -45,8 +45,14 @@ var vert_shader = `
 	varying vec4 v_col;
 	varying vec3 v_light_weight;
 
+	uniform float scale_f;
+
 	void main(void) {
-		gl_Position = proj_mat * pos_mat * vec4(v_pos_attr, 1.0);
+		vec3 v;
+		v.x = scale_f * v_pos_attr.x;
+		v.y = scale_f * v_pos_attr.y;
+		v.z = scale_f * v_pos_attr.z;
+		gl_Position = proj_mat * pos_mat * vec4(v, 1.0);
 		v_col = v_col_attr;
 		vec3 norm = norm_mat * norms_attr;
 		float w_lgt_dir_1 = max(dot(norm, lgt_dir_1), 0.0);
@@ -249,38 +255,71 @@ Shape.prototype.calc_mouse_rot = function(evt) {
 }
 
 Shape.prototype.on_mouse_down = function(evt) {
-	this.mouse_down = true;
-	this.org_sphere_pos = this.xy_to_sphere_pos(evt.clientX, evt.clientY);
+	if (evt.button != 0) {
+		return;
+	}
+	if (evt.shiftKey) {
+		this.mouse_zoom = true;
+		this.z_org = evt.clientY;
+		this.org_scale = this.gl.my.scale_f;
+	} else {
+		this.mouse_rotate = true;
+		this.org_sphere_pos = this.xy_to_sphere_pos(evt.clientX, evt.clientY);
+	}
+}
+
+Shape.prototype.zoom = function(evt) {
+	var dz = evt.clientY - this.z_org;
+	/*
+	 * Using '-' here will mean pulling the mouse downwards zooms out. That
+	 * is like pulling up a plane
+	 * Using a '+' will turn this around.
+	 * TODO: perhaps this should be optional?
+	 */
+	dz = 1 - dz * this.gl.my.zoom_scale;
+	/* don't continue at scaling 0 or even negative scaling */
+	if (dz > 0) {
+		this.gl.my.scale_f = dz * this.org_scale;
+	}
 }
 
 Shape.prototype.on_mouse_up = function(evt) {
 	/*
 	 * Since mouse_up event is caught even outside the canvas, while
-	 * mouse_down is only caught inside the canvas, it can happen that this
-	 * event is received without an initial mouse_down
+	 * mouse_rotate/mouse_zoom is only caught inside the canvas, it can
+	 * happen that this event is received without an initial
+	 * mouse_rotate/mouse_zoom
 	 */
-	if (!this.mouse_down) {
+	if (this.mouse_rotate) {
+		var q_drag = this.calc_mouse_rot(evt);
+		quat.mul(this.q_cur_rot, q_drag, this.q_cur_rot);
+		mat4.fromRotationTranslation(
+			this.gl.my.pos_mat,
+			this.q_cur_rot, [0.0, 0.0, -this.gl.my.cam_dist]);
+	} else if (this.mouse_zoom) {
+		this.zoom(evt);
+	} else {
 		return;
 	}
-	var q_drag = this.calc_mouse_rot(evt);
-	quat.mul(this.q_cur_rot, q_drag, this.q_cur_rot);
-	mat4.fromRotationTranslation(
-		this.gl.my.pos_mat,
-		this.q_cur_rot, [0.0, 0.0, -this.gl.my.cam_dist]);
 	this.reset_mouse();
 	requestAnimFrame(() => this.on_paint());
 }
 
 Shape.prototype.on_mouse_move = function(evt) {
-	if (!this.mouse_down) {
+	if (this.mouse_rotate) {
+		this.q_drag_rot = this.calc_mouse_rot(evt);
+	} else if (this.mouse_zoom) {
+		this.zoom(evt);
+	} else {
 		return;
 	}
-	this.q_drag_rot = this.calc_mouse_rot(evt);
 	requestAnimFrame(() => this.on_paint());
 }
 
 Shape.prototype.reset_mouse = function() {
-	this.mouse_down = false;
+	this.mouse_rotate = false;
+	this.mouse_zoom = false;
+	this.z_org = 0;
 }
 
 Shape.prototype.gl_init = function(cam_dist) {
@@ -290,8 +329,10 @@ Shape.prototype.gl_init = function(cam_dist) {
 	mat4.translate(gl.my.pos_mat, gl.my.pos_mat, [0.0, 0.0, -cam_dist]);
 	gl.my.pos_mat_stack = [];
 	gl.my.cam_dist = cam_dist;
+	gl.my.scale_f = 1.0;
 
 	r = ARC_SCALE * Math.min(gl.my.viewport_width, gl.my.viewport_height) / 2;
+	gl.my.zoom_scale = 2.0 / Math.max(gl.my.viewport_width, gl.my.viewport_height);
 	gl.my.arc_r2 = r*r;
 
 	gl.clearColor(0.0, 0.0, 0.0, 1.0);
@@ -359,6 +400,7 @@ Shape.prototype.get_shader_prog = function() {
 	shader_prog.v_col_attr = gl.getAttribLocation(shader_prog, "v_col_attr");
 	gl.enableVertexAttribArray(shader_prog.v_col_attr);
 
+	shader_prog.scale_f = gl.getUniformLocation(shader_prog, "scale_f");
 	shader_prog.proj_mat = gl.getUniformLocation(shader_prog, "proj_mat");
 	shader_prog.pos_mat = gl.getUniformLocation(shader_prog, "pos_mat");
 	shader_prog.norm_mat = gl.getUniformLocation(shader_prog, "norm_mat");
@@ -464,7 +506,7 @@ Shape.prototype.draw = function() {
 	mat4.perspective(gl.my.proj_mat,
 		45.0, gl.my.viewport_width / gl.my.viewport_height, 0.1, 4*gl.my.cam_dist);
 
-	if (this.mouse_down) {
+	if (this.mouse_rotate) {
 		var q;
 		q = quat.create();
 		quat.mul(q, this.q_drag_rot, this.q_cur_rot);
@@ -486,6 +528,7 @@ Shape.prototype.draw = function() {
 
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.my.fs);
 
+	gl.uniform1f(gl.my.shader_prog.scale_f, gl.my.scale_f);
 	gl.uniformMatrix4fv(gl.my.shader_prog.proj_mat, false, gl.my.proj_mat);
 	gl.uniformMatrix4fv(gl.my.shader_prog.pos_mat, false, gl.my.pos_mat);
 
