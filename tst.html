@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta content="Marcel Tuennissen" name="author" />
+  <title>
+    Choose off-file
+  </title>
+
+<script type="text/javascript" src="show-off.js"></script>
+<script type="text/javascript" src="js/gl-matrix-2.2.1.js"></script>
+<script type="text/javascript" src="js/webgl-utils.js"></script>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+</head>
+
+
+<!--
+TODO: How to show initial model from list?
+-->
+<body onload="draw_shape('http://localhost:8000/cube.off', 'doek', 5);">
+<div style="width:850px;">
+  <!--
+    If you exchange left en right the coordinates from the event in
+    on_mouse_down e.g. needs to be offset.
+  -->
+  <div style="float:left; width:600px">
+    <canvas id="doek" style="border: none;" width="500" height="500"></canvas>
+  </div>
+  <div style="float:right; width:200px; height:320px; overflow:auto;">
+    <p>Select a model from the list.</p>
+
+    <select id="mySelect" onchange="on_select()">
+      <option value="http://localhost:8000/cube.off">Cube
+      <option value="http://localhost:8000/hepta-twister.off">Polyhedron with Heptagons
+      <option value="http://localhost:8000/MW102.off">Uniform Star Polyhedron
+      <option value="http://localhost:8000/12B.S4xI.C2xI.off">Compound of 12 Cubes
+      <option value="http://localhost:8000/A5_E_60.eg.off">Compound of 60 Tetrahedra
+    </select>
+
+    <script>
+      function on_select() {
+        var x = document.getElementById("mySelect").value;
+        draw_shape(x, 'doek', 5);
+      }
+    </script>
+
+  </div>
+</div>
+</body>
+</html>
