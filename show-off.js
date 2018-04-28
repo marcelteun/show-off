@@ -108,6 +108,7 @@ function Shape(off_file, canvas_id, cam_dist) {
 	this.q_cur_rot = quat.create();
 	this.axis = vec3.create();
 	this.before = 0;
+	this.input_init();
 	var this_ = this; // define var the reach inside call-back
 	$.get(off_file, function(data) {
 		this_.get_off_shape(data);
@@ -322,22 +323,63 @@ Shape.prototype.reset_mouse = function() {
 	this.z_org = 0;
 }
 
-Shape.prototype.gl_init = function(cam_dist) {
+Shape.prototype.gl_reset_view = function(cam_dist) {
 	var gl = this.gl;
-	gl.my.proj_mat = mat4.create();
-	gl.my.pos_mat = mat4.create();
-	mat4.translate(gl.my.pos_mat, gl.my.pos_mat, [0.0, 0.0, -cam_dist]);
-	gl.my.pos_mat_stack = [];
-	gl.my.cam_dist = cam_dist;
+	quat.identity(this.q_cur_rot);
+	mat4.identity(gl.my.pos_mat);
+	mat4.translate(
+		gl.my.pos_mat, gl.my.pos_mat, [0.0, 0.0, -gl.my.cam_dist]);
 	gl.my.scale_f = 1.0;
+}
 
-	r = ARC_SCALE * Math.min(gl.my.viewport_width, gl.my.viewport_height) / 2;
-	gl.my.zoom_scale = 2.0 / Math.max(gl.my.viewport_width, gl.my.viewport_height);
-	gl.my.arc_r2 = r*r;
+KC_5 = 53;
 
-	gl.clearColor(0.0, 0.0, 0.0, 1.0);
-	gl.enable(gl.DEPTH_TEST);
+Shape.prototype.on_key_down = function(evt) {
+	/*
+	 *             5: reset to original position
+	 *       SHIFT 5: reset zoom
+	 * ALT + SHIFT 5: reset rotate
+	 */
+	var gl = this.gl;
+	if (!evt.shiftKey && !evt.altKey) {
+		/* No SHIFT and no ALT */
+		switch (evt.keyCode) {
+		case KC_5:
+			console.log('Undo all zoom/rotation');
+			this.gl_reset_view();
+			requestAnimFrame(() => this.on_paint());
+			break;
+		}
+	} else if (evt.shiftKey && !evt.altKey) {
+		/* Only SHIFT */
+		switch (evt.keyCode) {
+		case KC_5:
+			console.log('Undo all zoom');
+			gl.my.scale_f = 1.0;
+			requestAnimFrame(() => this.on_paint());
+			break;
+		}
+	} else if (!evt.shiftKey && evt.altKey) {
+		/* Only ALT */
+	} else {
+		/* Both ALT and SHIFT */
+		switch (evt.keyCode) {
+		case KC_5:
+			console.log('Undo all rotation');
+			quat.identity(this.q_cur_rot);
+			mat4.identity(gl.my.pos_mat);
+			mat4.translate(
+				gl.my.pos_mat, gl.my.pos_mat, [0.0, 0.0, -gl.my.cam_dist]);
+			requestAnimFrame(() => this.on_paint());
+			break;
+		}
+	}
+}
 
+Shape.prototype.on_key_up = function(evt) {
+}
+
+Shape.prototype.input_init = function(cam_dist) {
 	this.reset_mouse();
 	var this_ = this
 	this.canvas.onmousedown = function(evt) {
@@ -350,6 +392,28 @@ Shape.prototype.gl_init = function(cam_dist) {
 	document.onmousemove =function(evt) {
 		this_.on_mouse_move(evt);
 	}
+	document.onkeydown = function(evt) {
+		this_.on_key_down(evt);
+	}
+	this.canvas.onkeyup = function(evt) {
+		this_.on_key_up(evt);
+	}
+}
+
+Shape.prototype.gl_init = function(cam_dist) {
+	var gl = this.gl;
+	gl.my.proj_mat = mat4.create();
+	gl.my.pos_mat = mat4.create();
+	gl.my.pos_mat_stack = [];
+	gl.my.cam_dist = cam_dist;
+	this.gl_reset_view();
+
+	r = ARC_SCALE * Math.min(gl.my.viewport_width, gl.my.viewport_height) / 2;
+	gl.my.zoom_scale = 2.0 / Math.max(gl.my.viewport_width, gl.my.viewport_height);
+	gl.my.arc_r2 = r*r;
+
+	gl.clearColor(0.0, 0.0, 0.0, 1.0);
+	gl.enable(gl.DEPTH_TEST);
 }
 
 Shape.prototype.compile_shader = function(shader, prog) {
