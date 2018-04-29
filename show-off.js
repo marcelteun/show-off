@@ -55,7 +55,9 @@ var vert_shader = `
 		gl_Position = proj_mat * pos_mat * vec4(v, 1.0);
 		v_col = v_col_attr;
 		vec3 norm = norm_mat * norms_attr;
-		float w_lgt_dir_1 = max(dot(norm, lgt_dir_1), 0.0);
+		float cos_a = dot(norm, lgt_dir_1);
+		// Both sides are visible
+		float w_lgt_dir_1 = max(cos_a, -cos_a);
 		v_light_weight = lgt_ambient_col + lgt_dir_1_col * w_lgt_dir_1;
 	}
 `;
@@ -67,18 +69,6 @@ function triangle_normal(n, v0, v1, v2) {
 	vec3.subtract(d2, v2, v0);
 	vec3.cross(n, d1, d2);
 	vec3.normalize(n, n);
-	/*
-	 * Let the normal always point outwards.
-	 * Add the normal onto v0 and see if it ends up closer or further from
-	 * the origin, but first, create a normalised version of v0,
-	 * otherwise is v0 is very small this will not work
-	 */
-	var v0_n = vec3.create();
-	vec3.normalize(v0_n, v0);
-	vec3.add(d1, v0_n, n)
-	if (vec3.len(d1) < vec3.len(v0_n)) {
-		vec3.negate(n, n);
-	}
 	return n;
 }
 
