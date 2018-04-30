@@ -73,7 +73,7 @@ function triangle_normal(n, v0, v1, v2) {
 }
 
 function create_gl_context(canvas) {
-	var ctx = canvas.getContext("webgl");
+	var ctx = canvas.getContext("webgl", {stencil:true});
 	ctx.my = {};
 	ctx.my.viewport_width = canvas.width;
 	ctx.my.viewport_height = canvas.height;
@@ -404,6 +404,10 @@ Shape.prototype.gl_init = function(cam_dist) {
 
 	gl.clearColor(0.0, 0.0, 0.0, 1.0);
 	gl.enable(gl.DEPTH_TEST);
+	// Use stencil buffer for pentagrams, e.g.
+	gl.enable(gl.STENCIL_TEST);
+	gl.clearStencil(0);
+	gl.stencilMask(1);
 }
 
 Shape.prototype.compile_shader = function(shader, prog) {
@@ -494,16 +498,20 @@ Shape.prototype.triangulate = function() {
 	 *        this.gl.my.ns: an OpenGL normals buffer object with the fields
 	 *            elem_len and no_of_elem that specifies the normal to be
 	 *            used for that vertex.
-	 *        this.gl.my.fs: an OpenGL face buffer object with the fields
-	 *            elem_len  and no_of_elem. The latter expresses the amount
-	 *            of face indices, the former the length per index (i.e. 1).
-	 *            Each triplet forms a triangle.
+	 *        this.gl.my.fs: an array of OpenGL face buffer objects with the
+	 *            fields elem_len and no_of_elem. The latter expresses the
+	 *            amount of face indices, the former the length per index
+	 *            (i.e. 1). Each triplet forms one triangle. Each buffer
+	 *            object is one face. The reason that not all triangles are
+	 *            in one buffer is because a stencil buffer is used, since
+	 *            faces can be concave.
 	 */
-	var fs = [];
+	var gl = this.gl
 	var vs = [];
 	var ns = [];
 	var cols = [];
 	var no_vs = 0;
+	gl.my.fs = [];
 	for (var j = 0; j < this.Fs.length; j++) {
 		var f = this.Fs[j];
 		var n = vec3.create();
@@ -515,15 +523,22 @@ Shape.prototype.triangulate = function() {
 			/* convert to std Array, otherwise concat doesn't work */
 			ns = ns.concat(Array.prototype.slice.call(n));
 		}
-		var tris_1_face = [];
+		var f3s = []; // triangulated face
 		for (var i = 1; i < f.length - 1; i++) {
 			// i+1 before i, to keep clock-wise direction
-			tris_1_face = tris_1_face.concat([no_vs, no_vs + i + 1, no_vs + i]);
+			f3s = f3s.concat([no_vs, no_vs + i + 1, no_vs + i]);
 		}
 		no_vs += f.length;
-		fs = fs.concat(tris_1_face);
+
+		var gl_fs= gl.createBuffer();
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl_fs);
+		gl.bufferData(
+			gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(f3s),
+			gl.STATIC_DRAW);
+		gl_fs.elem_len = 1;
+		gl_fs.no_of_elem = f3s.length;
+		gl.my.fs.push(gl_fs);
 	}
-	var gl = this.gl
 
 	gl.my.vs = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.vs);
@@ -542,12 +557,6 @@ Shape.prototype.triangulate = function() {
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(ns), gl.STATIC_DRAW);
 	gl.my.ns.elem_len = 3;
 	gl.my.ns.no_of_elem = no_vs;
-
-	gl.my.fs = gl.createBuffer();
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.my.fs);
-	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(fs), gl.STATIC_DRAW);
-	gl.my.fs.elem_len = 1;
-	gl.my.fs.no_of_elem = fs.length;
 }
 
 Shape.prototype.draw = function() {
@@ -580,8 +589,6 @@ Shape.prototype.draw = function() {
 	gl.vertexAttribPointer(gl.my.shader_prog.v_col_attr,
 		gl.my.v_cols.elem_len, gl.FLOAT, false, 0, 0);
 
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.my.fs);
-
 	gl.uniform1f(gl.my.shader_prog.scale_f, gl.my.scale_f);
 	gl.uniformMatrix4fv(gl.my.shader_prog.proj_mat, false, gl.my.proj_mat);
 	gl.uniformMatrix4fv(gl.my.shader_prog.pos_mat, false, gl.my.pos_mat);
@@ -605,7 +612,35 @@ Shape.prototype.draw = function() {
 		scene['light_dir_1_g'],
 		scene['light_dir_1_b']);
 
-	gl.drawElements(gl.TRIANGLES, gl.my.fs.no_of_elem, gl.UNSIGNED_SHORT, 0);
+	/* Now draw each face with stencil buffer */
+	for (var i = 0; i < gl.my.fs.length; i++) {
+		var f = gl.my.fs[i];
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, f);
+
+		// For the stencil buffer
+		gl.clear(gl.STENCIL_BUFFER_BIT);
+		gl.colorMask(false, false, false, false);
+		gl.depthMask(false);
+		// always pass stencil test
+		gl.stencilFunc(gl.ALWAYS, 1, 1);
+		// stencil fail: don't care, never fails
+		// z-fail: zero (don't care, depthMask = false)
+		// both pass: invert stencil values
+		gl.stencilOp(gl.KEEP, gl.ZERO, gl.INVERT);
+		// Create triangulated stencil:
+		gl.drawElements(gl.TRIANGLES, f.no_of_elem, gl.UNSIGNED_SHORT, 0);
+
+		// reset colour and depth settings
+		gl.depthMask(true);
+		gl.colorMask(true, true, true, true);
+		// Draw only where stencil equals 1 (masked to 1) gl.INVERT was
+		// used, i.e. in case of e.g. 8 bits the value is either 0 or
+		// 0xff, but only the last bit is checked.
+		gl.stencilFunc(gl.EQUAL, 1, 1);
+		gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+		// Use triangulated stencil:
+		gl.drawElements(gl.TRIANGLES, f.no_of_elem, gl.UNSIGNED_SHORT, 0);
+	}
 }
 
 Shape.prototype.rotate = function() {
