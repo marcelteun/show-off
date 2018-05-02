@@ -26,18 +26,19 @@
     <p>Select a model from the list.</p>
 
     <select id="mySelect" onchange="on_select()">
-      <option value="off/cube.off">Cube
-      <option value="off/hepta-twister.off">Polyhedron with Heptagons
-      <option value="off/MW102.off">Uniform Star Polyhedron
-      <option value="off/MW20.off">Kepler Ponsoit
-      <option value="off/12B.S4xI.C2xI.off">Compound of 12 Cubes
-      <option value="off/A5_E_60.eg.off">Compound of 60 Tetrahedra
+      <option value="off/cube.off:">Cube
+      <option value="off/hepta-twister.off:">Polyhedron with Heptagons
+      <option value="off/MW102.off:">Uniform Star Polyhedron
+      <option value="off/MW20.off:1">Kepler Ponsoit
+      <option value="off/12B.S4xI.C2xI.off:">Compound of 12 Cubes
+      <option value="off/A5_E_60.eg.off:">Compound of 60 Tetrahedra
     </select>
 
     <script>
       function on_select() {
         var x = document.getElementById("mySelect").value;
-        draw_shape(x, 'doek', 5);
+        var pars = x.split(":");
+        draw_shape(pars[0], 'doek', 5, pars[1] == "1");
       }
     </script>
 

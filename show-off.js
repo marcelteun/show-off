@@ -21,7 +21,16 @@
 var DEG2RAD = Math.PI/360;
 var ARC_SCALE = 0.8; /* limit to switch rotation type for mouse */
 
-function draw_shape(off_file, canvas_id, cam_dist) {
+function draw_shape(off_file, canvas_id, cam_dist, has_concave_faces) {
+	/* Retrieve the specified off-file, interpret the file and draw it on
+	 * the canvas with the name 'canvas_id'.
+	 *
+	 * off_data: string in .off format that specifies the shape
+	 * canvas_id: the name of the canvas to draw on
+	 * cam_dist: the distance of the camera
+	 * has_concave_faces: boolean that specifies whether the model contains
+	 *                    concave faces.
+	 */
 	var off_url = window.location.protocol + "//" + window.location.host;
 	var path_ar = window.location.pathname.split('/');
 	var path = "";
@@ -40,7 +49,8 @@ function draw_shape(off_file, canvas_id, cam_dist) {
 	fetch(off_url).then(function(response) {
 		if(response.ok) {
 			response.text().then(function(data) {
-				var ogl = new Shape(data, canvas_id, cam_dist);
+				var ogl = new Shape(data,
+					canvas_id, cam_dist, has_concave_faces);
 			});
 		}
 	})
@@ -125,13 +135,15 @@ function create_gl_context(canvas) {
 	return ctx;
 }
 
-function Shape(off_data, canvas_id, cam_dist) {
-	/* Retrieve the specified off-file, interpret the file and draw it on
-	 * the canvas with the name 'canvas_id'.
+function Shape(off_data, canvas_id, cam_dist, concave) {
+	/* Interpret the specified off-data, and draw it on the canvas with the
+	 * name 'canvas_id'.
 	 *
 	 * off_data: string in .off format that specifies the shape
 	 * canvas_id: the name of the canvas to draw on
 	 * cam_dist: the distance of the camera
+	 * concave: boolean that specifies whether the model contains concave
+	 *          faces.
 	 */
 	this.canvas = document.getElementById(canvas_id);
 	this.gl = create_gl_context(this.canvas);
@@ -143,7 +155,7 @@ function Shape(off_data, canvas_id, cam_dist) {
 	this.before = 0;
 	this.input_init();
 	this.get_off_shape(off_data);
-	this.gl_init(cam_dist);
+	this.gl_init(cam_dist, concave);
 	this.gl.my.shader_prog = this.get_shader_prog();
 	this.triangulate();
 	this.on_paint();
@@ -443,13 +455,13 @@ Shape.prototype.input_init = function(cam_dist) {
 	}
 }
 
-Shape.prototype.gl_init = function(cam_dist) {
+Shape.prototype.gl_init = function(cam_dist, concave) {
 	var gl = this.gl;
 	gl.my.proj_mat = mat4.create();
 	gl.my.pos_mat = mat4.create();
 	gl.my.pos_mat_stack = [];
 	gl.my.cam_dist = cam_dist;
-	gl.my.use_stencil_buffer = true;
+	gl.my.use_stencil_buffer = concave;
 	this.gl_reset_view();
 
 	r = ARC_SCALE * Math.min(gl.my.viewport_width, gl.my.viewport_height) / 2;
@@ -458,8 +470,12 @@ Shape.prototype.gl_init = function(cam_dist) {
 
 	gl.clearColor(0.0, 0.0, 0.0, 1.0);
 	gl.enable(gl.DEPTH_TEST);
-	// Use stencil buffer for pentagrams, e.g.
-	gl.enable(gl.STENCIL_TEST);
+	if (concave) {
+		// Use stencil buffer for pentagrams, e.g.
+		gl.enable(gl.STENCIL_TEST);
+	} else {
+		gl.disable(gl.STENCIL_TEST);
+	}
 	gl.clearStencil(0);
 	gl.stencilMask(1);
 }
