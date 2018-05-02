@@ -10,14 +10,10 @@
 <script type="text/javascript" src="show-off.js"></script>
 <script type="text/javascript" src="js/gl-matrix-2.2.1.js"></script>
 <script type="text/javascript" src="js/webgl-utils.js"></script>
-<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 </head>
 
 
-<!--
-TODO: How to show initial model from list?
--->
-<body onload="draw_shape('http://localhost:8000/cube.off', 'doek', 5);">
+<body onload="draw_shape('off/cube.off', 'doek', 5);">
 <div style="width:850px;">
   <!--
     If you exchange left en right the coordinates from the event in
@@ -30,12 +26,12 @@ TODO: How to show initial model from list?
     <p>Select a model from the list.</p>
 
     <select id="mySelect" onchange="on_select()">
-      <option value="http://localhost:8000/cube.off">Cube
-      <option value="http://localhost:8000/hepta-twister.off">Polyhedron with Heptagons
-      <option value="http://localhost:8000/MW102.off">Uniform Star Polyhedron
-      <option value="http://localhost:8000/MW20.off">Kepler Ponsoit
-      <option value="http://localhost:8000/12B.S4xI.C2xI.off">Compound of 12 Cubes
-      <option value="http://localhost:8000/A5_E_60.eg.off">Compound of 60 Tetrahedra
+      <option value="off/cube.off">Cube
+      <option value="off/hepta-twister.off">Polyhedron with Heptagons
+      <option value="off/MW102.off">Uniform Star Polyhedron
+      <option value="off/MW20.off">Kepler Ponsoit
+      <option value="off/12B.S4xI.C2xI.off">Compound of 12 Cubes
+      <option value="off/A5_E_60.eg.off">Compound of 60 Tetrahedra
     </select>
 
     <script>

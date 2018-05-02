@@ -22,7 +22,31 @@ var DEG2RAD = Math.PI/360;
 var ARC_SCALE = 0.8; /* limit to switch rotation type for mouse */
 
 function draw_shape(off_file, canvas_id, cam_dist) {
-	 var ogl = new Shape(off_file, canvas_id, cam_dist);
+	var off_url = window.location.protocol + "//" + window.location.host;
+	var path_ar = window.location.pathname.split('/');
+	var path = "";
+	/* put together without file
+	 * Ignore empty path: ["", "file.off"]
+	 */
+	if (path_ar.length > 2) {
+		for (i = 1; i < path_ar.length - 1; i++) {
+			path += "/";
+			path += path_ar[i];
+		}
+		off_url += path;
+	}
+	off_url += "/";
+	off_url += off_file;
+	fetch(off_url).then(function(response) {
+		if(response.ok) {
+			response.text().then(function(data) {
+				var ogl = new Shape(data, canvas_id, cam_dist);
+			});
+		}
+	})
+	.catch(function(error) {
+		console.error("error fetching", off_file, error);
+	});
 }
 
 var scene = {
@@ -101,15 +125,14 @@ function create_gl_context(canvas) {
 	return ctx;
 }
 
-function Shape(off_file, canvas_id, cam_dist) {
+function Shape(off_data, canvas_id, cam_dist) {
 	/* Retrieve the specified off-file, interpret the file and draw it on
 	 * the canvas with the name 'canvas_id'.
 	 *
-	 * off_file: the file in .off format that specifies the shape
+	 * off_data: string in .off format that specifies the shape
 	 * canvas_id: the name of the canvas to draw on
 	 * cam_dist: the distance of the camera
 	 */
-	this.off_file = off_file;
 	this.canvas = document.getElementById(canvas_id);
 	this.gl = create_gl_context(this.canvas);
 	/* rotation while dragging mouse: */
@@ -119,14 +142,11 @@ function Shape(off_file, canvas_id, cam_dist) {
 	this.axis = vec3.create();
 	this.before = 0;
 	this.input_init();
-	var this_ = this; // define var the reach inside call-back
-	$.get(off_file, function(data) {
-		this_.get_off_shape(data);
-		this_.gl_init(cam_dist);
-		this_.gl.my.shader_prog = this_.get_shader_prog();
-		this_.triangulate();
-		this_.on_paint();
-	});
+	this.get_off_shape(off_data);
+	this.gl_init(cam_dist);
+	this.gl.my.shader_prog = this.get_shader_prog();
+	this.triangulate();
+	this.on_paint();
 }
 
 Shape.prototype.get_off_shape = function(data) {
