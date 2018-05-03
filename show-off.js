@@ -271,6 +271,7 @@ Shape.prototype.get_off_shape = function(data) {
 
 Shape.prototype.xy_to_sphere_pos = function(x, y) {
 	var result;
+
 	x = x - this.gl.my.viewport_width/2;
 	y = y - this.gl.my.viewport_height/2;
 	y = -y;
@@ -288,8 +289,8 @@ Shape.prototype.xy_to_sphere_pos = function(x, y) {
 	return result;
 }
 
-Shape.prototype.calc_mouse_rot = function(evt) {
-	new_sphere_pos = this.xy_to_sphere_pos(evt.clientX, evt.clientY)
+Shape.prototype.calc_rotation = function(x, y) {
+	new_sphere_pos = this.xy_to_sphere_pos(x, y);
 	var result = quat.create();
 	quat.rotationTo(result, this.org_sphere_pos, new_sphere_pos);
 	var m = mat3.create()
@@ -302,45 +303,66 @@ Shape.prototype.on_mouse_down = function(evt) {
 		return;
 	}
 	if (evt.shiftKey) {
-		this.mouse_zoom = true;
-		this.z_org = evt.clientY;
+		this.zooming = true;
+		this.zoom_org = evt.clientY;
 		this.org_scale = this.gl.my.scale_f;
 	} else {
-		this.mouse_rotate = true;
+		this.rotating = true;
 		this.org_sphere_pos = this.xy_to_sphere_pos(evt.clientX, evt.clientY);
 	}
 }
 
-Shape.prototype.zoom = function(evt) {
-	var dz = evt.clientY - this.z_org;
+Shape.prototype.zoom = function(zoom_new, pull_up) {
 	/*
-	 * Using '-' here will mean pulling the mouse downwards zooms out. That
-	 * is like pulling up a plane
-	 * Using a '+' will turn this around.
-	 * TODO: perhaps this should be optional?
+	 * pull_up: true means for mouse that plane throttle operation is used.
+	 *          Set to false for the opposite. For touch, the logical way
+	 *          would be to set to false. That way a bigger distance between
+	 *          the fingers will mean zoom in.
 	 */
-	dz = 1 - dz * this.gl.my.zoom_scale;
+	var dz = zoom_new - this.zoom_org;
+	if (pull_up) {
+		dz = -dz;
+	}
+	dz = 1 + dz * this.gl.my.zoom_scale;
 	/* don't continue at scaling 0 or even negative scaling */
 	if (dz > 0) {
 		this.gl.my.scale_f = dz * this.org_scale;
 	}
 }
 
+Shape.prototype.on_mouse_move = function(evt) {
+	if (this.rotating) {
+		this.q_drag_rot = this.calc_rotation(evt.clientX, evt.clientY);
+	} else if (this.zooming) {
+		this.zoom(evt.clientY, true);
+	} else {
+		return;
+	}
+	requestAnimFrame(() => this.on_paint());
+}
+
+Shape.prototype.set_cur_rot = function(q_drag) {
+	/*
+	 * Set new current orientation from dragging rotation (quat)
+	 */
+	quat.mul(this.q_cur_rot, q_drag, this.q_cur_rot);
+	mat4.fromRotationTranslation(
+		this.gl.my.pos_mat,
+		this.q_cur_rot, [0.0, 0.0, -this.gl.my.cam_dist]);
+}
+
 Shape.prototype.on_mouse_up = function(evt) {
 	/*
 	 * Since mouse_up event is caught even outside the canvas, while
-	 * mouse_rotate/mouse_zoom is only caught inside the canvas, it can
+	 * rotating/zooming is only caught inside the canvas, it can
 	 * happen that this event is received without an initial
-	 * mouse_rotate/mouse_zoom
+	 * rotating/zooming
 	 */
-	if (this.mouse_rotate) {
-		var q_drag = this.calc_mouse_rot(evt);
-		quat.mul(this.q_cur_rot, q_drag, this.q_cur_rot);
-		mat4.fromRotationTranslation(
-			this.gl.my.pos_mat,
-			this.q_cur_rot, [0.0, 0.0, -this.gl.my.cam_dist]);
-	} else if (this.mouse_zoom) {
-		this.zoom(evt);
+	if (this.rotating) {
+		var q_drag = this.calc_rotation(evt.clientX, evt.clientY);
+		this.set_cur_rot(q_drag);
+	} else if (this.zooming) {
+		this.zoom(evt.clientY, true);
 	} else {
 		return;
 	}
@@ -348,21 +370,102 @@ Shape.prototype.on_mouse_up = function(evt) {
 	requestAnimFrame(() => this.on_paint());
 }
 
-Shape.prototype.on_mouse_move = function(evt) {
-	if (this.mouse_rotate) {
-		this.q_drag_rot = this.calc_mouse_rot(evt);
-	} else if (this.mouse_zoom) {
-		this.zoom(evt);
-	} else {
-		return;
+Shape.prototype.reset_mouse = function() {
+	this.rotating = false;
+	this.zooming = false;
+	this.zoom_org = 0;
+}
+
+Shape.prototype.touch_end_rotate = function() {
+	/* check whether a touch_move was really handled: */
+	if (this.q_drag_rot) {
+		this.set_cur_rot(this.q_drag_rot);
+	}
+	this.rotating = false;
+}
+
+Shape.prototype.touch_end_zoom = function() {
+	this.zooming = false;
+	this.zoom_org = 0;
+}
+
+Shape.prototype.touch_dist = function(t0, t1) {
+	var v0 = vec2.fromValues(t0.clientX, t0.clientY);
+	var v1 = vec2.fromValues(t1.clientX, t1.clientY);
+	return vec2.dist(v1, v0);
+}
+
+Shape.prototype.on_touch_start = function(evt) {
+	evt.preventDefault();
+
+	switch (evt.touches.length) {
+	case 1:
+		this.rotating = true;
+		var t = evt.touches[0];
+		this.q_drag_rot = undefined;
+		this.org_sphere_pos = this.xy_to_sphere_pos(t.clientX, t.clientY);
+		break;
+	case 2:
+		if (this.rotating) {
+			this.touch_end_rotate();
+		}
+		this.zooming = true;
+		this.zoom_org = this.touch_dist(evt.touches[0], evt.touches[1]);
+		this.org_scale = this.gl.my.scale_f;
+		break;
+	default:
+		if (this.rotating) {
+			this.touch_end_rotate();
+		}
+		if (this.zooming) {
+			this.touch_end_zoom();
+		}
+		break;
+	}
+}
+
+Shape.prototype.on_touch_move = function(evt) {
+	switch (evt.touches.length) {
+	case 1:
+		/* when touches.length changes from 1 -> 2 -> 1:
+		 * this.rotating == false (which is expected behaviour)
+		 */
+		if (this.rotating) {
+			var t = evt.touches[0];
+			this.q_drag_rot =
+				this.calc_rotation(t.clientX, t.clientY);
+		}
+		break;
+	case 2:
+		/* when touches.length changes from 2 -> 3 -> 2:
+		 * this.zooming == false (which is expected behaviour)
+		 */
+		if (this.zooming) {
+			this.zoom(
+				this.touch_dist(evt.touches[0], evt.touches[1]),
+				false
+			);
+		}
+		break;
+	default:
+		/* ignore, not supported */
+		break;
 	}
 	requestAnimFrame(() => this.on_paint());
 }
 
-Shape.prototype.reset_mouse = function() {
-	this.mouse_rotate = false;
-	this.mouse_zoom = false;
-	this.z_org = 0;
+Shape.prototype.on_touch_end = function(evt) {
+	if (this.rotating) {
+		/* save the last known rotation.
+		 * Note that this isn't entirely correct. It is better to take
+		 * the position from the changedTouches (should be 1), but this
+		 * is easier:
+		 */
+		this.touch_end_rotate();
+	}
+	if (this.zooming) {
+		this.touch_end_zoom();
+	}
 }
 
 Shape.prototype.gl_reset_view = function(cam_dist) {
@@ -444,7 +547,7 @@ Shape.prototype.input_init = function(cam_dist) {
 	document.onmouseup = function(evt) {
 		this_.on_mouse_up(evt);
 	}
-	document.onmousemove =function(evt) {
+	document.onmousemove = function(evt) {
 		this_.on_mouse_move(evt);
 	}
 	document.onkeydown = function(evt) {
@@ -453,6 +556,15 @@ Shape.prototype.input_init = function(cam_dist) {
 	this.canvas.onkeyup = function(evt) {
 		this_.on_key_up(evt);
 	}
+	this.canvas.addEventListener('touchstart', function(evt) {
+		this_.on_touch_start(evt);
+	});
+	this.canvas.addEventListener('touchmove', function(evt) {
+		this_.on_touch_move(evt);
+	});
+	this.canvas.addEventListener('touchend', function(evt) {
+		this_.on_touch_end(evt);
+	});
 }
 
 Shape.prototype.gl_init = function(cam_dist, concave) {
@@ -652,7 +764,7 @@ Shape.prototype.draw = function() {
 	mat4.perspective(gl.my.proj_mat,
 		45.0, gl.my.viewport_width / gl.my.viewport_height, 0.1, 4*gl.my.cam_dist);
 
-	if (this.mouse_rotate) {
+	if (this.rotating) {
 		var q;
 		q = quat.create();
 		quat.mul(q, this.q_drag_rot, this.q_cur_rot);
