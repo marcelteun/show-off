@@ -54,9 +54,8 @@ TODO
 - Buttons to show faces, edges, vertices
 - Some animationed file format, derived from 'off' for cube compounds.
   animated-off: only needs axis and angle domain.
-- Add support for touch
-- Optionally turn off stecil buffer for effeciency?
 - Add navigation help as standard.
+- Use webpack and use ECMAScript 6 features.
 
 LICENSE
 -------
