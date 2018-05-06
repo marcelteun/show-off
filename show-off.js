@@ -146,6 +146,7 @@ function Shape(off_data, canvas_id, cam_dist, concave) {
 	 *          faces.
 	 */
 	this.canvas = document.getElementById(canvas_id);
+	this.resize_canvas(this.canvas);
 	this.gl = create_gl_context(this.canvas);
 	/* rotation while dragging mouse: */
 	this.q_drag_rot = quat.create();
@@ -159,6 +160,24 @@ function Shape(off_data, canvas_id, cam_dist, concave) {
 	this.gl.my.shader_prog = this.get_shader_prog();
 	this.triangulate();
 	this.on_paint();
+}
+
+Shape.prototype.resize_canvas = function(canvas) {
+	/*
+	 * Make the specified canvas size in line with the css Otherwise the
+	 * mouse/touch events don't end up at the complete bottom / right. Other
+	 * problems are that the 3D shaped is scaled differently in X and Y.
+	 */
+
+	// look up the size the canvas is being displayed
+	const width = canvas.clientWidth;
+	const height = canvas.clientHeight;
+
+	// If it's resolution does not match change it
+	if (canvas.width !== width || canvas.height !== height) {
+		canvas.width = width;
+		canvas.height = height;
+	}
 }
 
 Shape.prototype.get_off_shape = function(data) {
@@ -298,17 +317,26 @@ Shape.prototype.calc_rotation = function(x, y) {
 	return result;
 }
 
+Shape.prototype.get_elem_pos = function(evt) {
+	var rect = this.canvas.getBoundingClientRect();
+	return {
+		x: evt.clientX - rect.left,
+		y: evt.clientY - rect.top
+	};
+}
+
 Shape.prototype.on_mouse_down = function(evt) {
 	if (evt.button != 0) {
 		return;
 	}
+	var pos = this.get_elem_pos(evt);
 	if (evt.shiftKey) {
 		this.zooming = true;
-		this.zoom_org = evt.clientY;
+		this.zoom_org = pos.y;
 		this.org_scale = this.gl.my.scale_f;
 	} else {
 		this.rotating = true;
-		this.org_sphere_pos = this.xy_to_sphere_pos(evt.clientX, evt.clientY);
+		this.org_sphere_pos = this.xy_to_sphere_pos(pos.x, pos.y);
 	}
 }
 
@@ -331,10 +359,11 @@ Shape.prototype.zoom = function(zoom_new, pull_up) {
 }
 
 Shape.prototype.on_mouse_move = function(evt) {
+	var pos = this.get_elem_pos(evt);
 	if (this.rotating) {
-		this.q_drag_rot = this.calc_rotation(evt.clientX, evt.clientY);
+		this.q_drag_rot = this.calc_rotation(pos.x, pos.y);
 	} else if (this.zooming) {
-		this.zoom(evt.clientY, true);
+		this.zoom(pos.y, true);
 	} else {
 		return;
 	}
@@ -358,11 +387,12 @@ Shape.prototype.on_mouse_up = function(evt) {
 	 * happen that this event is received without an initial
 	 * rotating/zooming
 	 */
+	var pos = this.get_elem_pos(evt);
 	if (this.rotating) {
-		var q_drag = this.calc_rotation(evt.clientX, evt.clientY);
+		var q_drag = this.calc_rotation(pos.x, pos.y);
 		this.set_cur_rot(q_drag);
 	} else if (this.zooming) {
-		this.zoom(evt.clientY, true);
+		this.zoom(pos.y, true);
 	} else {
 		return;
 	}
@@ -390,8 +420,10 @@ Shape.prototype.touch_end_zoom = function() {
 }
 
 Shape.prototype.touch_dist = function(t0, t1) {
-	var v0 = vec2.fromValues(t0.clientX, t0.clientY);
-	var v1 = vec2.fromValues(t1.clientX, t1.clientY);
+	var pos0 = this.get_elem_pos(t0);
+	var pos1 = this.get_elem_pos(t1);
+	var v0 = vec2.fromValues(pos0.x, pos0.y);
+	var v1 = vec2.fromValues(pos1.x, pos1.y);
 	return vec2.dist(v1, v0);
 }
 
@@ -401,9 +433,9 @@ Shape.prototype.on_touch_start = function(evt) {
 	switch (evt.touches.length) {
 	case 1:
 		this.rotating = true;
-		var t = evt.touches[0];
+		var pos = this.get_elem_pos(evt.touches[0]);
 		this.q_drag_rot = undefined;
-		this.org_sphere_pos = this.xy_to_sphere_pos(t.clientX, t.clientY);
+		this.org_sphere_pos = this.xy_to_sphere_pos(pos.x, pos.y);
 		break;
 	case 2:
 		if (this.rotating) {
@@ -431,9 +463,9 @@ Shape.prototype.on_touch_move = function(evt) {
 		 * this.rotating == false (which is expected behaviour)
 		 */
 		if (this.rotating) {
-			var t = evt.touches[0];
+			var pos = this.get_elem_pos(evt.touches[0]);
 			this.q_drag_rot =
-				this.calc_rotation(t.clientX, t.clientY);
+				this.calc_rotation(pos.x, pos.y);
 		}
 		break;
 	case 2:
