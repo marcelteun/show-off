@@ -17,7 +17,7 @@ out of the screen) which seemed to be missing at Sketchfab.
 INTERFACE
 ---------
 
-Navigation
+Navigation by Mouse
 
 Left click a mouse and move it to rotate the object, normally in an intuitive
 way: it is as if you touch a ball an spin it. This way isn't implemented all the
@@ -47,6 +47,21 @@ only have convex faces:
 
 Turn off support for concave faces (convex only): 'v'
 Turn on support for concave faces: 'Shift-v'
+
+Navigation by Touch
+
+Rotation of the object is done by one mouse press. Rotation works the same as
+explained in "Navigation by Mouse", where the area is divided into an inner area
+and an outer area. Rotating in the outer area results in a clockwise or
+anti-clockwise rotation.
+
+Zooming is done by double touch. By moving two fingers apart you zoom in, and
+zooming out is done by moving the two fingers closer to eachother.
+
+A triple touch resets all positioning.
+
+On can add a finger and switch to the other navigation, but one cannot switch
+back.
 
 TODO
 ----

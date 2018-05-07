@@ -445,6 +445,17 @@ Shape.prototype.on_touch_start = function(evt) {
 		this.zoom_org = this.touch_dist(evt.touches[0], evt.touches[1]);
 		this.org_scale = this.gl.my.scale_f;
 		break;
+	case 3:
+		console.log('Undo all zoom/rotation');
+		if (this.rotating) {
+			this.touch_end_rotate();
+		}
+		if (this.zooming) {
+			this.touch_end_zoom();
+		}
+		this.gl_reset_view();
+		requestAnimFrame(() => this.on_paint());
+		break;
 	default:
 		if (this.rotating) {
 			this.touch_end_rotate();
@@ -498,6 +509,7 @@ Shape.prototype.on_touch_end = function(evt) {
 	if (this.zooming) {
 		this.touch_end_zoom();
 	}
+	requestAnimFrame(() => this.on_paint());
 }
 
 Shape.prototype.gl_reset_view = function(cam_dist) {
