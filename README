@@ -66,6 +66,7 @@ back.
 TODO
 ----
 
+- Mention text if no WebGL support?
 - Buttons to show faces, edges, vertices
 - Some animationed file format, derived from 'off' for cube compounds.
   animated-off: only needs axis and angle domain.

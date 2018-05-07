@@ -25,13 +25,14 @@ function draw_shape(off_file, canvas_id, cam_dist, has_concave_faces) {
 	/* Retrieve the specified off-file, interpret the file and draw it on
 	 * the canvas with the name 'canvas_id'.
 	 *
-	 * off_data: string in .off format that specifies the shape
+	 * off_file: relative path of the off file.
 	 * canvas_id: the name of the canvas to draw on
 	 * cam_dist: the distance of the camera
 	 * has_concave_faces: boolean that specifies whether the model contains
 	 *                    concave faces.
 	 */
-	var off_url = window.location.protocol + "//" + window.location.host;
+	var prot = window.location.protocol;
+	var off_url = prot + "//" + window.location.host;
 	var path_ar = window.location.pathname.split('/');
 	var path = "";
 	/* put together without file
@@ -46,17 +47,47 @@ function draw_shape(off_file, canvas_id, cam_dist, has_concave_faces) {
 	}
 	off_url += "/";
 	off_url += off_file;
-	fetch(off_url).then(function(response) {
-		if(response.ok) {
-			response.text().then(function(data) {
-				var ogl = new Shape(data,
-					canvas_id, cam_dist, has_concave_faces);
-			});
-		}
-	})
-	.catch(function(error) {
-		console.error("error fetching", off_file, error);
-	});
+	if (prot == "http:") {
+		fetch(off_url).then(function(response) {
+			if(response.ok) {
+				response.text().then(function(data) {
+					var ogl = new Shape(data,
+						canvas_id,
+						cam_dist,
+						has_concave_faces
+					);
+				});
+			}
+		})
+		.catch(function(error) {
+			console.error("error fetching", off_file, error);
+		});
+	} else {
+		console.log("protocol", prot, "not supported");
+	}
+}
+
+function draw_local_shape(off_file, canvas_id, cam_dist, has_concave_faces) {
+	/* Interpret the local OFF file and draw it on the canvas with the name
+	 * 'canvas_id'.
+	 *
+	 * off_file: local off_file path
+	 * canvas_id: the name of the canvas to draw on
+	 * cam_dist: the distance of the camera
+	 * has_concave_faces: boolean that specifies whether the model contains
+	 *                    concave faces.
+	 */
+	// Note: will only work it user provided local file himself
+	var reader = new FileReader();
+	reader.onload = function(evt) {
+		var data = evt.target.result;
+		var ogl = new Shape(data,
+			canvas_id,
+			cam_dist,
+			has_concave_faces
+		);
+	};
+	reader.readAsText(off_file);
 }
 
 var scene = {
