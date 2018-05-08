@@ -147,6 +147,11 @@ var vert_shader = `
 	}
 `;
 
+function is_float(n_str) {
+	/* for a string representation of a number check whether it is an int, ie. not float */
+	return n_str.indexOf(".") > 0;
+}
+
 function triangle_normal(n, v0, v1, v2) {
 	var d1 = vec3.create();
 	var d2 = vec3.create();
@@ -282,11 +287,12 @@ Shape.prototype.get_off_shape = function(data) {
 							col = [0.8, 0.8, 0.8];
 						} else {
 							for (var j = 0; j < 3; j++) {
-								ch = parseFloat(words[n+1+j]);
-								if (ch < 1) {
-									col[j] = ch;
+								var s_chl = words[n+1+j];
+								var chl = s_chl * 1;
+								if (is_float(s_chl)) {
+									col[j] = chl;
 								} else {
-									col[j] = ch / 255;
+									col[j] = chl / 255;
 								}
 							}
 						}
