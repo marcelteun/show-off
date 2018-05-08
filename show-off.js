@@ -163,10 +163,21 @@ function triangle_normal(n, v0, v1, v2) {
 }
 
 function create_gl_context(canvas) {
-	var ctx = canvas.getContext("webgl", {stencil:true});
-	ctx.my = {};
-	ctx.my.viewport_width = canvas.width;
-	ctx.my.viewport_height = canvas.height;
+	var ctx;
+	try {
+		ctx = canvas.getContext("webgl", {stencil:true});
+		ctx.my = {};
+		ctx.my.viewport_width = canvas.width;
+		ctx.my.viewport_height = canvas.height;
+	}
+	catch (e) {
+	}
+
+	if (ctx === undefined) {
+		var tmp = canvas.getContext('2d');
+		tmp.font = "bold 20px Arial";
+		tmp.fillText("WebGL not supported", 10, 50);
+	}
 
 	return ctx;
 }
@@ -184,6 +195,9 @@ function Shape(off_data, canvas_id, cam_dist, concave) {
 	this.canvas = document.getElementById(canvas_id);
 	this.resize_canvas(this.canvas);
 	this.gl = create_gl_context(this.canvas);
+	if (this.gl === undefined) {
+		return;
+	}
 	/* rotation while dragging mouse: */
 	this.q_drag_rot = quat.create();
 	/* current rotation after latest mouse_up: */

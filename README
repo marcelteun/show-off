@@ -69,7 +69,6 @@ TODO
 - Add button to toggle zoom direction.
 - Use div.id and size as imput and let js add canvas sizexsize. Then the script
   can add instructions too?
-- Mention text if no WebGL support?
 - Buttons to show faces, edges, vertices ('f', 'e', 'v')
 - Some animationed file format, derived from 'off' for cube compounds.
   animated-off: only needs axis and angle domain.
