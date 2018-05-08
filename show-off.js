@@ -220,6 +220,7 @@ Shape.prototype.get_off_shape = function(data) {
 		'readOk': 4
 	};
 	var nrRead = 0;
+	var nrRealFaces = 0;
 	var state = states.checkOff;
 	var lines = data.split('\n');
 	var error = false
@@ -276,26 +277,27 @@ Shape.prototype.get_off_shape = function(data) {
 					}
 					if (n >= 3) {
 						this.Fs[nrRead] = face;
+						var col = new Array(3);
+						if (words.length == n + 1) {
+							col = [0.8, 0.8, 0.8];
+						} else {
+							for (var j = 0; j < 3; j++) {
+								ch = parseFloat(words[n+1+j]);
+								if (ch < 1) {
+									col[j] = ch;
+								} else {
+									col[j] = ch / 255;
+								}
+							}
+						}
+						// add alpha = 1
+						col.push(1);
+						this.cols[nrRead] = col;
+						console.log('face', face, 'col', col);
+						nrRealFaces += 1;
 					} else if (n == 2) {
 						this.Es.push(face);
 					} // else ignore, but count
-					var col = new Array(3);
-					if (words.length == n + 1) {
-						col = [0.8, 0.8, 0.8];
-					} else {
-						for (var j = 0; j < 3; j++) {
-							ch = parseFloat(words[n+1+j]);
-							if (ch < 1) {
-								col[j] = ch;
-							} else {
-								col[j] = ch / 255;
-							}
-						}
-					}
-					// add alpha = 1
-					col.push(1);
-					this.cols[nrRead] = col;
-					console.log('face', face, 'col', col);
 					nrRead += 1;
 					console.log(nrRead, this.Fs.length);
 					if (nrRead >= this.Fs.length) {
@@ -317,6 +319,7 @@ Shape.prototype.get_off_shape = function(data) {
 	if (state != states.readOk) {
 		throw 'Error reading OFF file';
 	}
+	this.Fs = this.Fs.slice(0, nrRealFaces);
 }
 
 Shape.prototype.xy_to_sphere_pos = function(x, y) {
