@@ -97,7 +97,7 @@ var scene = {
 	'light_ambient_b': 0.4,
 
 	/* directional light (will be normalized `*/
-	'light_dir_1': [-.2, -.2, -1],
+	'light_dir_1': [-2, -1, -1.5],
 	'light_dir_1_r': 0.6,
 	'light_dir_1_g': 0.6,
 	'light_dir_1_b': 0.6,
