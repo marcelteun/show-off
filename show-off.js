@@ -571,9 +571,15 @@ Shape.prototype.on_key_down = function(evt) {
 			requestAnimFrame(() => this.on_paint());
 			break;
 		case KC_V:
-			console.log('Support for convex faces only');
-			gl.my.use_stencil_buffer = false;
-			gl.disable(gl.STENCIL_TEST);
+			if (gl.my.use_stencil_buffer) {
+				console.log('Support for convex faces only');
+				gl.my.use_stencil_buffer = false;
+				gl.disable(gl.STENCIL_TEST);
+			} else {
+				console.log('Support for concave faces');
+				gl.my.use_stencil_buffer = true;
+				gl.enable(gl.STENCIL_TEST);
+			}
 			requestAnimFrame(() => this.on_paint());
 			break;
 		}
@@ -583,12 +589,6 @@ Shape.prototype.on_key_down = function(evt) {
 		case KC_5:
 			console.log('Undo all zoom');
 			gl.my.scale_f = 1.0;
-			requestAnimFrame(() => this.on_paint());
-			break;
-		case KC_V:
-			console.log('Support for concave faces on');
-			gl.my.use_stencil_buffer = true;
-			gl.enable(gl.STENCIL_TEST);
 			requestAnimFrame(() => this.on_paint());
 			break;
 		}
