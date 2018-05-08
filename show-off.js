@@ -562,7 +562,10 @@ Shape.prototype.gl_reset_view = function(cam_dist) {
 }
 
 KC_5 = 53;
-KC_V = 86;
+KC_C = 67;
+KC_F = 70; /* toggle show faces: (reserved, TODO) */
+KC_E = 69; /* toggle show edges: (reserved, TODO) */
+KC_V = 86; /* toggle show vertices: (reserved, TODO) */
 
 Shape.prototype.on_key_down = function(evt) {
 	/*
@@ -579,7 +582,7 @@ Shape.prototype.on_key_down = function(evt) {
 			this.gl_reset_view();
 			requestAnimFrame(() => this.on_paint());
 			break;
-		case KC_V:
+		case KC_C:
 			if (gl.my.use_stencil_buffer) {
 				console.log('Support for convex faces only');
 				gl.my.use_stencil_buffer = false;
