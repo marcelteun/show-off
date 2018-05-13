@@ -1,4 +1,5 @@
 /*
+ * @license
  * Copyright (C) 2018 Marcel Tunnissen
  *
  * License: GNU Public License version 2
@@ -18,6 +19,9 @@
  * check at http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
  * or write to the Free Software Foundation,
  */
+const raf = require('raf');
+import {mat3, mat4, quat, vec2, vec3, vec4} from 'gl-matrix';
+
 var DEG2RAD = Math.PI/360;
 var ARC_SCALE = 0.8; /* limit to switch rotation type for mouse */
 
@@ -39,7 +43,7 @@ function draw_shape(off_file, canvas_id, cam_dist, has_concave_faces) {
 	 * Ignore empty path: ["", "file.off"]
 	 */
 	if (path_ar.length > 2) {
-		for (i = 1; i < path_ar.length - 1; i++) {
+		for (var i = 1; i < path_ar.length - 1; i++) {
 			path += "/";
 			path += path_ar[i];
 		}
@@ -231,7 +235,7 @@ Shape.prototype.resize_canvas = function(canvas) {
 }
 
 Shape.prototype.get_off_shape = function(data) {
-	states = {
+	var states = {
 		'checkOff': 0,
 		'readSizes': 1,
 		'readVs': 2,
@@ -342,13 +346,17 @@ Shape.prototype.get_off_shape = function(data) {
 	this.Fs = this.Fs.slice(0, nrRealFaces);
 }
 
+Shape.prototype.paint = function() {
+	raf(() => this.on_paint());
+}
+
 Shape.prototype.xy_to_sphere_pos = function(x, y) {
 	var result;
 
 	x = x - this.gl.my.viewport_width/2;
 	y = y - this.gl.my.viewport_height/2;
 	y = -y;
-	len2 = x * x + y * y;
+	var len2 = x * x + y * y;
 	if (len2 > this.gl.my.arc_r2) {
 		/* rotate around z-axis */
 		var scale = Math.sqrt(this.gl.my.arc_r2/len2);
@@ -363,7 +371,7 @@ Shape.prototype.xy_to_sphere_pos = function(x, y) {
 }
 
 Shape.prototype.calc_rotation = function(x, y) {
-	new_sphere_pos = this.xy_to_sphere_pos(x, y);
+	var new_sphere_pos = this.xy_to_sphere_pos(x, y);
 	var result = quat.create();
 	quat.rotationTo(result, this.org_sphere_pos, new_sphere_pos);
 	var m = mat3.create()
@@ -421,7 +429,9 @@ Shape.prototype.on_mouse_move = function(evt) {
 	} else {
 		return;
 	}
-	requestAnimFrame(() => this.on_paint());
+	this.paint();
+
+	return false;
 }
 
 Shape.prototype.set_cur_rot = function(q_drag) {
@@ -451,7 +461,7 @@ Shape.prototype.on_mouse_up = function(evt) {
 		return;
 	}
 	this.reset_mouse();
-	requestAnimFrame(() => this.on_paint());
+	this.paint();
 }
 
 Shape.prototype.reset_mouse = function() {
@@ -508,7 +518,7 @@ Shape.prototype.on_touch_start = function(evt) {
 			this.touch_end_zoom();
 		}
 		this.gl_reset_view();
-		requestAnimFrame(() => this.on_paint());
+		this.paint();
 		break;
 	default:
 		if (this.rotating) {
@@ -548,7 +558,7 @@ Shape.prototype.on_touch_move = function(evt) {
 		/* ignore, not supported */
 		break;
 	}
-	requestAnimFrame(() => this.on_paint());
+	this.paint();
 }
 
 Shape.prototype.on_touch_end = function(evt) {
@@ -563,7 +573,7 @@ Shape.prototype.on_touch_end = function(evt) {
 	if (this.zooming) {
 		this.touch_end_zoom();
 	}
-	requestAnimFrame(() => this.on_paint());
+	this.paint();
 }
 
 Shape.prototype.gl_reset_view = function(cam_dist) {
@@ -575,11 +585,11 @@ Shape.prototype.gl_reset_view = function(cam_dist) {
 	gl.my.scale_f = 1.0;
 }
 
-KC_5 = 53;
-KC_C = 67;
-KC_F = 70; /* toggle show faces: (reserved, TODO) */
-KC_E = 69; /* toggle show edges: (reserved, TODO) */
-KC_V = 86; /* toggle show vertices: (reserved, TODO) */
+var KC_5 = 53;
+var KC_C = 67;
+var KC_F = 70; /* toggle show faces: (reserved, TODO) */
+var KC_E = 69; /* toggle show edges: (reserved, TODO) */
+var KC_V = 86; /* toggle show vertices: (reserved, TODO) */
 
 Shape.prototype.on_key_down = function(evt) {
 	/*
@@ -594,7 +604,7 @@ Shape.prototype.on_key_down = function(evt) {
 		case KC_5:
 			console.log('Undo all zoom/rotation');
 			this.gl_reset_view();
-			requestAnimFrame(() => this.on_paint());
+			this.paint();
 			break;
 		case KC_C:
 			if (gl.my.use_stencil_buffer) {
@@ -606,7 +616,7 @@ Shape.prototype.on_key_down = function(evt) {
 				gl.my.use_stencil_buffer = true;
 				gl.enable(gl.STENCIL_TEST);
 			}
-			requestAnimFrame(() => this.on_paint());
+			this.paint();
 			break;
 		}
 	} else if (evt.shiftKey && !evt.altKey) {
@@ -615,7 +625,7 @@ Shape.prototype.on_key_down = function(evt) {
 		case KC_5:
 			console.log('Undo all zoom');
 			gl.my.scale_f = 1.0;
-			requestAnimFrame(() => this.on_paint());
+			this.paint();
 			break;
 		}
 	} else if (!evt.shiftKey && evt.altKey) {
@@ -629,7 +639,7 @@ Shape.prototype.on_key_down = function(evt) {
 			mat4.identity(gl.my.pos_mat);
 			mat4.translate(
 				gl.my.pos_mat, gl.my.pos_mat, [0.0, 0.0, -gl.my.cam_dist]);
-			requestAnimFrame(() => this.on_paint());
+			this.paint();
 			break;
 		}
 	}
@@ -677,7 +687,7 @@ Shape.prototype.gl_init = function(cam_dist, concave) {
 	gl.my.use_stencil_buffer = concave;
 	this.gl_reset_view();
 
-	r = ARC_SCALE * Math.min(gl.my.viewport_width, gl.my.viewport_height) / 2;
+	var r = ARC_SCALE * Math.min(gl.my.viewport_width, gl.my.viewport_height) / 2;
 	gl.my.zoom_scale = 2.0 / Math.max(gl.my.viewport_width, gl.my.viewport_height);
 	gl.my.arc_r2 = r*r;
 
@@ -721,7 +731,7 @@ Shape.prototype.get_shader_prog = function() {
 	var f_shader = this.compile_f_shader(frag_shader);
 	var v_shader = this.compile_v_shader(vert_shader);
 
-	shader_prog = gl.createProgram();
+	var shader_prog = gl.createProgram();
 	gl.attachShader(shader_prog, v_shader);
 	gl.attachShader(shader_prog, f_shader);
 	gl.linkProgram(shader_prog);
@@ -961,5 +971,13 @@ Shape.prototype.rotate = function() {
 Shape.prototype.on_paint = function() {
 	this.draw();
 }
+
+global.draw_local_shape = draw_local_shape;
+global.draw_shape = draw_shape;
+
+export {
+	draw_local_shape,
+	draw_shape
+};
 
 // vim: set noexpandtab sw=8
