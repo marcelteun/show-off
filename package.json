@@ -2,6 +2,7 @@
   "name": "show-off",
   "version": "0.9.0",
   "description": "A javascript library show object represented by off-files in 3D",
+  "homepage": "https://github.com/marcelteun/show-off",
   "main": "index.js",
   "private": true,
   "scripts": {
