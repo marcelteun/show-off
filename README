@@ -40,6 +40,7 @@ requirement number 2 is the non-intuitive rotation when crossing the border
 between the outer and the inner area.
 
 To zoom: use the Shift button and the mouse. Zooming follows a plane throttle.
+         Use the mouse wheel in a similar way.
 
 To jump back to the original zoom / rotation: '5'
 To undo only the zoom: 'Shift-5'.

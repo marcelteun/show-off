@@ -470,6 +470,14 @@ Shape.prototype.reset_mouse = function() {
 	this.zoom_org = 0;
 }
 
+Shape.prototype.on_wheel = function(evt) {
+	evt.preventDefault();
+	var F = 500.0; /* some constant that worked for my mouse */
+	var dz = (F - evt.deltaY) / F;
+	this.gl.my.scale_f = dz * this.gl.my.scale_f;
+	this.paint();
+}
+
 Shape.prototype.touch_end_rotate = function() {
 	/* check whether a touch_move was really handled: */
 	if (this.q_drag_rot) {
@@ -675,6 +683,9 @@ Shape.prototype.input_init = function(cam_dist) {
 	});
 	this.canvas.addEventListener('touchend', function(evt) {
 		this_.on_touch_end(evt);
+	});
+	this.canvas.addEventListener('wheel', function(evt) {
+		this_.on_wheel(evt);
 	});
 }
 
