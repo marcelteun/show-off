@@ -268,7 +268,7 @@ Shape.prototype.get_off_shape = function(data) {
 				this.Fs = new Array(nrOfFs);
 				this.Es = [];
 				this.cols = new Array(nrOfFs);
-				console.log('will read', nrOfVs, 'Vs', nrOfFs, 'Fs (', nrOfEs, 'edges)');
+				console.log('reading', nrOfVs, 'Vs', nrOfFs, 'Fs (', nrOfEs, 'edges)');
 				state = states.readVs;
 				break;
 			case states.readVs:
@@ -278,10 +278,8 @@ Shape.prototype.get_off_shape = function(data) {
 						parseFloat(words[0]),
 						parseFloat(words[1]),
 						parseFloat(words[2])];
-					console.log(this.Vs[nrRead]);
 					nrRead += 1;
 					if (nrRead >= this.Vs.length) {
-						console.log('read Vs done');
 						state = states.readFs;
 						nrRead = 0;
 					}
@@ -317,13 +315,11 @@ Shape.prototype.get_off_shape = function(data) {
 						// add alpha = 1
 						col.push(1);
 						this.cols[nrRead] = col;
-						console.log('face', face, 'col', col);
 						nrRealFaces += 1;
 					} else if (n == 2) {
 						this.Es.push(face);
 					} // else ignore, but count
 					nrRead += 1;
-					console.log(nrRead, this.Fs.length);
 					if (nrRead >= this.Fs.length) {
 						state = states.readOk;
 						console.log('Done reading OFF file');
