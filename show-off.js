@@ -101,10 +101,16 @@ var scene = {
 	'light_ambient_b': 0.4,
 
 	/* directional light (will be normalized `*/
-	'light_dir_1': [-2, -1, -1.5],
-	'light_dir_1_r': 0.6,
-	'light_dir_1_g': 0.6,
-	'light_dir_1_b': 0.6,
+	'light_dir_1': [-2, -2, -1.5],
+	'light_dir_1_r': 0.4,
+	'light_dir_1_g': 0.4,
+	'light_dir_1_b': 0.4,
+
+	/* directional light (will be normalized `*/
+	'light_dir_2': [0.5, -1, -0.5],
+	'light_dir_2_r': 0.2,
+	'light_dir_2_g': 0.2,
+	'light_dir_2_b': 0.2,
 };
 
 var frag_shader = `
@@ -130,6 +136,8 @@ var vert_shader = `
 	uniform vec3 lgt_ambient_col;
 	uniform vec3 lgt_dir_1;
 	uniform vec3 lgt_dir_1_col;
+	uniform vec3 lgt_dir_2;
+	uniform vec3 lgt_dir_2_col;
 
 	varying vec4 v_col;
 	varying vec3 v_light_weight;
@@ -146,8 +154,11 @@ var vert_shader = `
 		vec3 norm = norm_mat * norms_attr;
 		float cos_a = dot(norm, lgt_dir_1);
 		// Both sides are visible
-		float w_lgt_dir_1 = max(cos_a, -cos_a);
-		v_light_weight = lgt_ambient_col + lgt_dir_1_col * w_lgt_dir_1;
+		float w_lgt_dir = max(cos_a, -cos_a);
+		v_light_weight = lgt_ambient_col + lgt_dir_1_col * w_lgt_dir;
+		cos_a = dot(norm, lgt_dir_2);
+		w_lgt_dir = max(cos_a, -cos_a);
+		v_light_weight += lgt_dir_2_col * w_lgt_dir;
 	}
 `;
 
@@ -769,6 +780,10 @@ Shape.prototype.get_shader_prog = function() {
 							"lgt_dir_1");
         shader_prog.lgt_dir_1_col = gl.getUniformLocation(shader_prog,
 							"lgt_dir_1_col");
+        shader_prog.lgt_dir_2 = gl.getUniformLocation(shader_prog,
+							"lgt_dir_2");
+        shader_prog.lgt_dir_2_col = gl.getUniformLocation(shader_prog,
+							"lgt_dir_2_col");
 
 	return shader_prog;
 }
@@ -914,9 +929,9 @@ Shape.prototype.draw = function() {
 		 scene['light_ambient_r'],
 		 scene['light_ambient_g'],
 		 scene['light_ambient_b']);
+	/* incoming light -> source of light */
 	var light_dir_1 = vec3.create();
 	vec3.normalize(light_dir_1, scene['light_dir_1']);
-	/* incoming light -> source of light */
 	vec3.scale(light_dir_1, light_dir_1, -1);
 	gl.uniform3fv(gl.my.shader_prog.lgt_dir_1, light_dir_1);
 	gl.uniform3f(
@@ -924,6 +939,15 @@ Shape.prototype.draw = function() {
 		scene['light_dir_1_r'],
 		scene['light_dir_1_g'],
 		scene['light_dir_1_b']);
+	var light_dir_2 = vec3.create();
+	vec3.normalize(light_dir_2, scene['light_dir_2']);
+	vec3.scale(light_dir_2, light_dir_2, -1);
+	gl.uniform3fv(gl.my.shader_prog.lgt_dir_2, light_dir_2);
+	gl.uniform3f(
+		gl.my.shader_prog.lgt_dir_2_col,
+		scene['light_dir_2_r'],
+		scene['light_dir_2_g'],
+		scene['light_dir_2_b']);
 
 	if (gl.my.use_stencil_buffer) {
 		/* Now draw each face with stencil buffer */
