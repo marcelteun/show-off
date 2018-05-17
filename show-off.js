@@ -895,7 +895,7 @@ Shape.prototype.draw = function() {
 
 	/* TODO: get max R value and add to cam_dist (+ some margin) */
 	mat4.perspective(gl.my.proj_mat,
-		45.0, gl.my.viewport_width / gl.my.viewport_height, 0.1, 4*gl.my.cam_dist);
+		45.0*DEG2RAD, gl.my.viewport_width / gl.my.viewport_height, 0.1, 4*gl.my.cam_dist);
 
 	if (this.rotating) {
 		var q;

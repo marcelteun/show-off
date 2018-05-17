@@ -20,7 +20,7 @@
     function on_file(evt) {
       var files = evt.target.files;
       for (var i = 0, f; f = files[i]; i++) {
-        draw_local_shape(f, 'doek', 5, true);
+        draw_local_shape(f, 'doek', 10, true);
       }
     }
     document.getElementById('files').addEventListener('change', on_file,

@@ -21,21 +21,21 @@
     <p>Select a model from the list.</p>
 
     <select id="mySelect" onchange="on_select()">
-      <option value="off/cube.off:">Cube
-      <option value="off/hepta-twister.off:">Polyhedron with Heptagons
-      <option value="off/MW102.off:">Uniform Star Polyhedron
-      <option value="off/MW20.off:1">Kepler Ponsoit
-      <option value="off/12B.S4xI.C2xI.off:">Compound of 12 Cubes
-      <option value="off/10-tetrahedra.off:">Compound of 10 Tetrahedra
-      <option value="off/A5_E_60.eg.off:">Compound of 60 Tetrahedra
-      <option value="off/2xMW117.7cols.off:1">Compound of 2 Girsids
+      <option value="off/cube.off:5:">Cube
+      <option value="off/hepta-twister.off:10:">Polyhedron with Heptagons
+      <option value="off/MW102.off:10:">Uniform Star Polyhedron
+      <option value="off/MW20.off:7:1">Kepler Ponsoit
+      <option value="off/12B.S4xI.C2xI.off:10:">Compound of 12 Cubes
+      <option value="off/10-tetrahedra.off:4:">Compound of 10 Tetrahedra
+      <option value="off/A5_E_60.eg.off:10:">Compound of 60 Tetrahedra
+      <option value="off/2xMW117.7cols.off:6:1">Compound of 2 Girsids
     </select>
 
     <script>
       function on_select() {
         var x = document.getElementById("mySelect").value;
         var pars = x.split(":");
-        draw_shape(pars[0], 'doek', 5, pars[1] == "1");
+        draw_shape(pars[0], 'doek', pars[1], pars[2] == "1");
       }
     </script>
 
