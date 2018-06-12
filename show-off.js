@@ -181,11 +181,16 @@ function create_gl_context(canvas) {
 	var ctx;
 	try {
 		ctx = canvas.getContext("webgl", {stencil:true});
+		/* fix for Edge, issue 12125200 */
+		if (!ctx) {
+			ctx = canvas.getContext("experimental-webgl", {stencil:true});
+		}
 		ctx.my = {};
 		ctx.my.viewport_width = canvas.width;
 		ctx.my.viewport_height = canvas.height;
 	}
 	catch (e) {
+		console.error('error occurred', e);
 	}
 
 	if (ctx === undefined) {
