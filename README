@@ -108,6 +108,9 @@ LICENSE
 
 GNU Public License version 2
 
+Note: I have had problems with npm stripping away the license for gl-matrix.js
+If you are going to use the bundle I advise you to include the license again.
+
 ACKNOWLEDGEMENTS
 ----------------
 
