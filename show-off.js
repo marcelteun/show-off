@@ -51,7 +51,7 @@ function draw_shape(off_file, canvas_id, cam_dist, has_concave_faces) {
 	}
 	off_url += "/";
 	off_url += off_file;
-	if (prot == "http:") {
+	if (prot == "http:" || prot == "https:") {
 		fetch(off_url).then(function(response) {
 			if(response.ok) {
 				response.text().then(function(data) {
