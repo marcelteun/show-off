@@ -58,14 +58,34 @@ function draw_shape(off_file, canvas_id, cam_dist, has_concave_faces) {
 					var ogl = new Shape(data,
 						canvas_id,
 						cam_dist,
-						has_concave_faces
-					);
+						has_concave_faces);
 				});
 			}
 		})
 		.catch(function(error) {
 			console.error("error fetching", off_file, error);
 		});
+	} else if (prot == "file:") {
+		/*
+		 * File protocol is supported for testing purposes
+		 * The solution below isn't used for http, since it is
+		 * deprecated.
+		 */
+		var req = new XMLHttpRequest();
+		req.open("GET", off_file, false);
+		req.onreadystatechange = function () {
+			if(req.readyState === 4) {
+				if(req.status === 200 || req.status == 0) {
+					var ogl = new Shape(req.responseText,
+							canvas_id,
+							cam_dist,
+							has_concave_faces);
+				} else {
+					console.log("HTML status", req.status);
+				}
+			}
+		}
+		req.send()
 	} else {
 		console.log("protocol '" + prot + "' not supported");
 	}
