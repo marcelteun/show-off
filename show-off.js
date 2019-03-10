@@ -721,12 +721,12 @@ Shape.prototype.input_init = function(cam_dist) {
 		this_.on_mouse_down(evt);
 	}
 	// Register move and release even outside the canvas
-	document.onmouseup = function(evt) {
+	document.addEventListener('mouseup', function(evt) {
 		this_.on_mouse_up(evt);
-	}
-	document.onmousemove = function(evt) {
+	});
+	document.addEventListener('mousemove', function(evt) {
 		this_.on_mouse_move(evt);
-	}
+	});
 	document.onkeydown = function(evt) {
 		this_.on_key_down(evt);
 	}

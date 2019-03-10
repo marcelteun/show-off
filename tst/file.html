@@ -8,10 +8,13 @@
 </head>
 
 
-<body onload="draw_shape('off/cube.off', 'model_canvas', 10, {bg_col: [1, 1, 1]});">
+<body onload="draw_shape('off/cube.off', 'cube_canvas', 10, {bg_col: [0.7, 0.7, 1]});draw_shape('off/hepta-twister.off', 'hepta_canvas', 10, {bg_col: [1, 1, 1]});">
 <div id="model">
   <p>
-  <canvas id="model_canvas"></canvas>
+  <canvas id="cube_canvas"></canvas>
+  </p>
+  <p>
+  <canvas id="hepta_canvas"></canvas>
   </p>
 </div>
 </body>
