@@ -25,20 +25,32 @@ import {mat3, mat4, quat, vec2, vec3, vec4} from 'gl-matrix';
 var DEG2RAD = Math.PI/360;
 var ARC_SCALE = 0.8; /* limit to switch rotation type for mouse */
 
-function draw_shape(off_file, canvas_id, cam_dist, has_concave_faces) {
+function draw_shape(off_file,
+		canvas_id,
+		cam_dist,
+		opt) {
 	/* Retrieve the specified off-file, interpret the file and draw it on
 	 * the canvas with the name 'canvas_id'.
 	 *
 	 * off_file: relative path of the off file.
 	 * canvas_id: the name of the canvas to draw on
 	 * cam_dist: the distance of the camera
-	 * has_concave_faces: boolean that specifies whether the model contains
-	 *                    concave faces.
+	 * opt: optional parameters in a dictionary. This can be:
+	 *      has_concave_faces: boolean that specifies whether the model
+	 *                         contains concave faces.
+	 *      bg_col: background colour to use. This is an array specifying
+	 *              the red, green, blue channels as values between 0 andn
+	 *              1.  If nothing is specified, then black is used.
+	 *      The parameter itself is optional too.
 	 */
 	var prot = window.location.protocol;
 	var off_url = prot + "//" + window.location.host;
 	var path_ar = window.location.pathname.split('/');
 	var path = "";
+	var _opt = {};
+	if (opt !== undefined) {
+		_opt = opt;
+	}
 	/* put together without file
 	 * Ignore empty path: ["", "file.off"]
 	 */
@@ -58,7 +70,7 @@ function draw_shape(off_file, canvas_id, cam_dist, has_concave_faces) {
 					var ogl = new Shape(data,
 						canvas_id,
 						cam_dist,
-						has_concave_faces);
+						_opt);
 				});
 			}
 		})
@@ -79,7 +91,7 @@ function draw_shape(off_file, canvas_id, cam_dist, has_concave_faces) {
 					var ogl = new Shape(req.responseText,
 							canvas_id,
 							cam_dist,
-							has_concave_faces);
+							_opt);
 				} else {
 					console.log("HTML status", req.status);
 				}
@@ -91,24 +103,33 @@ function draw_shape(off_file, canvas_id, cam_dist, has_concave_faces) {
 	}
 }
 
-function draw_local_shape(off_file, canvas_id, cam_dist, has_concave_faces) {
+function draw_local_shape(off_file, canvas_id, cam_dist, opt) {
 	/* Interpret the local OFF file and draw it on the canvas with the name
 	 * 'canvas_id'.
 	 *
 	 * off_file: local off_file path
 	 * canvas_id: the name of the canvas to draw on
 	 * cam_dist: the distance of the camera
-	 * has_concave_faces: boolean that specifies whether the model contains
-	 *                    concave faces.
+	 * opt: optional parameters in a dictionary. This can be:
+	 *      has_concave_faces: boolean that specifies whether the model
+	 *                         contains concave faces.
+	 *      bg_col: background colour to use. This is an array specifying
+	 *              the red, green, blue channels as values between 0 andn
+	 *              1.  If nothing is specified, then black is used.
+	 *      The parameter itself is optional too.
 	 */
 	// Note: will only work it user provided local file himself
+	var _opt = {};
+	if (opt !== undefined) {
+		_opt = opt;
+	}
 	var reader = new FileReader();
 	reader.onload = function(evt) {
 		var data = evt.target.result;
 		var ogl = new Shape(data,
 			canvas_id,
 			cam_dist,
-			has_concave_faces
+			_opt
 		);
 	};
 	reader.readAsText(off_file);
@@ -222,15 +243,20 @@ function create_gl_context(canvas) {
 	return ctx;
 }
 
-function Shape(off_data, canvas_id, cam_dist, concave) {
+function Shape(off_data, canvas_id, cam_dist, opt) {
 	/* Interpret the specified off-data, and draw it on the canvas with the
 	 * name 'canvas_id'.
 	 *
 	 * off_data: string in .off format that specifies the shape
 	 * canvas_id: the name of the canvas to draw on
 	 * cam_dist: the distance of the camera
-	 * concave: boolean that specifies whether the model contains concave
-	 *          faces.
+	 * opt: optional parameters in a dictionary. This can be:
+	 *      has_concave_faces: boolean that specifies whether the model
+	 *                         contains concave faces.
+	 *      bg_col: background colour to use. This is an array specifying
+	 *              the red, green, blue channels as values between 0 andn
+	 *              1.  If nothing is specified, then black is used.
+	 *      The parameter itself isn't optional.
 	 */
 	this.canvas = document.getElementById(canvas_id);
 	this.resize_canvas(this.canvas);
@@ -246,7 +272,7 @@ function Shape(off_data, canvas_id, cam_dist, concave) {
 	this.before = 0;
 	this.input_init();
 	this.get_off_shape(off_data);
-	this.gl_init(cam_dist, concave);
+	this.gl_init(cam_dist, opt);
 	this.gl.my.shader_prog = this.get_shader_prog();
 	this.triangulate();
 	this.on_paint();
@@ -721,26 +747,41 @@ Shape.prototype.input_init = function(cam_dist) {
 	});
 }
 
-Shape.prototype.gl_init = function(cam_dist, concave) {
+Shape.prototype.gl_init = function(cam_dist, opt) {
+	/*
+	 * cam_dist: the distance of the camera
+	 * opt: optional parameters in a dictionary. This can be:
+	 *      has_concave_faces: boolean that specifies whether the model
+	 *                         contains concave faces.
+	 *      bg_col: background colour to use. This is an array specifying
+	 *              the red, green, blue channels as values between 0 andn
+	 *              1.  If nothing is specified, then black is used.
+	 *      The parameter itself isn't.
+	 */
 	var gl = this.gl;
 	gl.my.proj_mat = mat4.create();
 	gl.my.pos_mat = mat4.create();
 	gl.my.pos_mat_stack = [];
 	gl.my.cam_dist = cam_dist;
-	gl.my.use_stencil_buffer = concave;
 	this.gl_reset_view();
 
 	var r = ARC_SCALE * Math.min(gl.my.viewport_width, gl.my.viewport_height) / 2;
 	gl.my.zoom_scale = 2.0 / Math.max(gl.my.viewport_width, gl.my.viewport_height);
 	gl.my.arc_r2 = r*r;
 
-	gl.clearColor(0.0, 0.0, 0.0, 1.0);
+	if ('bg_col' in opt) {
+		gl.clearColor(opt.bg_col[0], opt.bg_col[1], opt.bg_col[2], 1.0);
+	} else {
+		gl.clearColor(0.0, 0.0, 0.0, 1.0);
+	}
 	gl.enable(gl.DEPTH_TEST);
-	if (concave) {
+	if ('has_concave_faces' in opt) {
 		// Use stencil buffer for pentagrams, e.g.
 		gl.enable(gl.STENCIL_TEST);
+		gl.my.use_stencil_buffer = opt.has_concave_faces;
 	} else {
 		gl.disable(gl.STENCIL_TEST);
+		gl.my.use_stencil_buffer = true;
 	}
 	gl.clearStencil(0);
 	gl.stencilMask(1);
