@@ -67,7 +67,7 @@ function draw_shape(off_file, canvas_id, cam_dist, has_concave_faces) {
 			console.error("error fetching", off_file, error);
 		});
 	} else {
-		console.log("protocol", prot, "not supported");
+		console.log("protocol '" + prot + "' not supported");
 	}
 }
 
