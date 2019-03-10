@@ -727,9 +727,9 @@ Shape.prototype.input_init = function(cam_dist) {
 	document.addEventListener('mousemove', function(evt) {
 		this_.on_mouse_move(evt);
 	});
-	document.onkeydown = function(evt) {
+	document.addEventListener('keydown', function(evt) {
 		this_.on_key_down(evt);
-	}
+	});
 	this.canvas.onkeyup = function(evt) {
 		this_.on_key_up(evt);
 	}
