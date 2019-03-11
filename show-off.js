@@ -37,7 +37,7 @@ function draw_shape(off_file,
 	 * cam_dist: the distance of the camera
 	 * opt: optional parameters in a dictionary. This can be:
 	 *      has_concave_faces: boolean that specifies whether the model
-	 *                         contains concave faces.
+	 *                         contains concave faces. Default false.
 	 *      bg_col: background colour to use. This is an array specifying
 	 *              the red, green, blue channels as values between 0 andn
 	 *              1.  If nothing is specified, then black is used.
@@ -112,7 +112,7 @@ function draw_local_shape(off_file, canvas_id, cam_dist, opt) {
 	 * cam_dist: the distance of the camera
 	 * opt: optional parameters in a dictionary. This can be:
 	 *      has_concave_faces: boolean that specifies whether the model
-	 *                         contains concave faces.
+	 *                         contains concave faces. Default false.
 	 *      bg_col: background colour to use. This is an array specifying
 	 *              the red, green, blue channels as values between 0 andn
 	 *              1.  If nothing is specified, then black is used.
@@ -252,7 +252,7 @@ function Shape(off_data, canvas_id, cam_dist, opt) {
 	 * cam_dist: the distance of the camera
 	 * opt: optional parameters in a dictionary. This can be:
 	 *      has_concave_faces: boolean that specifies whether the model
-	 *                         contains concave faces.
+	 *                         contains concave faces. Default false.
 	 *      bg_col: background colour to use. This is an array specifying
 	 *              the red, green, blue channels as values between 0 andn
 	 *              1.  If nothing is specified, then black is used.
@@ -752,7 +752,7 @@ Shape.prototype.gl_init = function(cam_dist, opt) {
 	 * cam_dist: the distance of the camera
 	 * opt: optional parameters in a dictionary. This can be:
 	 *      has_concave_faces: boolean that specifies whether the model
-	 *                         contains concave faces.
+	 *                         contains concave faces. Default false.
 	 *      bg_col: background colour to use. This is an array specifying
 	 *              the red, green, blue channels as values between 0 andn
 	 *              1.  If nothing is specified, then black is used.
@@ -775,13 +775,13 @@ Shape.prototype.gl_init = function(cam_dist, opt) {
 		gl.clearColor(0.0, 0.0, 0.0, 1.0);
 	}
 	gl.enable(gl.DEPTH_TEST);
-	if ('has_concave_faces' in opt) {
+	if ('has_concave_faces' in opt && opt.has_concave_faces) {
 		// Use stencil buffer for pentagrams, e.g.
 		gl.enable(gl.STENCIL_TEST);
 		gl.my.use_stencil_buffer = opt.has_concave_faces;
 	} else {
 		gl.disable(gl.STENCIL_TEST);
-		gl.my.use_stencil_buffer = true;
+		gl.my.use_stencil_buffer = false;
 	}
 	gl.clearStencil(0);
 	gl.stencilMask(1);
