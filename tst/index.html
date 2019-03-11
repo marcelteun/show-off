@@ -35,7 +35,8 @@
       function on_select() {
         var x = document.getElementById("mySelect").value;
         var pars = x.split(":");
-        draw_shape(pars[0], 'doek', pars[1], pars[2] == "1");
+        draw_shape(pars[0],
+                   'doek', pars[1], {has_concave_faces: pars[2] == "1"});
       }
     </script>
 
