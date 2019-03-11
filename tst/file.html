@@ -1,21 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Show off-file</title>
+	<meta charset="UTF-8">
+	<title>Show off-file</title>
 
-  <script src="js/show-off-bundle.js"></script>
+	<script src="js/show-off-bundle.js"></script>
+	<script>
+var color_ui;
+var color_init = "#000000";
+var current_col = convert_col(color_init);
+var models = [];
+
+window.addEventListener("load", startup, false);
+function convert_col(col_str) {
+	return [
+		parseInt(col_str.slice(1,3), 16) / 256,
+		parseInt(col_str.slice(3,5), 16) / 256,
+		parseInt(col_str.slice(5,7), 16) / 256];
+}
+function startup() {
+	draw_shapes();
+	color_ui = document.querySelector("#color_ui");
+	color_ui.value = color_init;
+	color_ui.addEventListener("change", update_bg, false);
+	color_ui.select();
+}
+function update_bg(e) {
+	current_col = convert_col(e.target.value);
+	var i;
+	for (i = 0; i < models.length; i++) {
+		model_update_bg(models[i], current_col);
+	}
+}
+function draw_shapes(e) {
+	models.push(
+		draw_shape('off/cube.off', 'mw03', 10, {bg_col: current_col}));
+	models.push(
+		draw_shape('off/MW20.off', 'mw20', 10, {bg_col: current_col}));
+}
+function model_update_bg(mod, col) {
+	mod.shape.update_bgcol(current_col);
+}
+	</script>
 </head>
 
 
-<body onload="draw_shape('off/cube.off', 'cube_canvas', 10, {bg_col: [0.7, 0.7, 1]});draw_shape('off/hepta-twister.off', 'hepta_canvas', 10, {bg_col: [1, 1, 1]});">
+<body>
 <div id="model">
-  <p>
-  <canvas id="cube_canvas"></canvas>
-  </p>
-  <p>
-  <canvas id="hepta_canvas"></canvas>
-  </p>
+	<p>
+		In the 3D images below you can familiarise yourself with the 3D
+		interface.
+	</p>
+	<table>
+		<tr>
+			<td><b>Action</b></td>
+			<td><b>Mouse</b></td>
+			<td><b>Touch</b></td>
+		</tr><tr>
+			<td>Rotate:</td>
+			<td>Hold down button one and move.</td>
+			<td>One finger touch and move.</td>
+		</tr><tr>
+			<td>Zoom in/out:</td>
+			<td>Shift and hold down button one and move vertically.</td>
+			<td>Double finger touch and change distance.</td>
+		</tr><tr>
+			<td>Zoom (alt):</td>
+			<td>Roll mouse wheel.</td>
+			<td></td>
+		</tr><tr>
+			<td>Undo All:</td>
+			<td>Press 5 (compare with F5).</td>
+			<td>Simultaneous triple touch.</td>
+		</tr><tr>
+			<td>Toggle Support for concave faces:</td>
+			<td>Press 'c' (<b>c</b>onvex / <b>c</b>oncave).</td>
+			<td></td>
+		</tr>
+	</table>
+	<p>
+		<b>Note</b> that button presses are valid for all canvases on one page.
+	</p>
+	<p>
+		A cube only has convex faces:<br>
+		<canvas id="mw03"></canvas>
+		<script>
+		</script>
+	</p>
+	<p>
+		The small stellated dodecahedron has concave faces. Initially
+		they are drawn here as if all faces are convex. This is more
+		efficient, but leads to a wrong model:<br>
+		<canvas id="mw20"></canvas><br>
+		This can be fixed by pressing 'c'.
+	</p>
+	<p>
+		<label for="color_ui">Background colour:</label>
+		<input type="color" value="#000000" id="color_ui">
+	</p>
 </div>
 </body>
 </html>
