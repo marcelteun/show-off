@@ -48,6 +48,7 @@ function draw_shape(off_file,
 	var path_ar = window.location.pathname.split('/');
 	var path = "";
 	var _opt = {};
+	var result = {};
 	if (opt !== undefined) {
 		_opt = opt;
 	}
@@ -67,7 +68,7 @@ function draw_shape(off_file,
 		fetch(off_url).then(function(response) {
 			if(response.ok) {
 				response.text().then(function(data) {
-					var ogl = new Shape(data,
+					result.shape = new Shape(data,
 						canvas_id,
 						cam_dist,
 						_opt);
@@ -88,7 +89,7 @@ function draw_shape(off_file,
 		req.onreadystatechange = function () {
 			if(req.readyState === 4) {
 				if(req.status === 200 || req.status == 0) {
-					var ogl = new Shape(req.responseText,
+					result.shape = new Shape(req.responseText,
 							canvas_id,
 							cam_dist,
 							_opt);
@@ -101,6 +102,7 @@ function draw_shape(off_file,
 	} else {
 		console.log("protocol '" + prot + "' not supported");
 	}
+	return result;
 }
 
 function draw_local_shape(off_file, canvas_id, cam_dist, opt) {
@@ -124,9 +126,10 @@ function draw_local_shape(off_file, canvas_id, cam_dist, opt) {
 		_opt = opt;
 	}
 	var reader = new FileReader();
+	var result = {};
 	reader.onload = function(evt) {
 		var data = evt.target.result;
-		var ogl = new Shape(data,
+		result.shape = new Shape(data,
 			canvas_id,
 			cam_dist,
 			_opt
@@ -745,6 +748,12 @@ Shape.prototype.input_init = function(cam_dist) {
 	this.canvas.addEventListener('wheel', function(evt) {
 		this_.on_wheel(evt);
 	});
+}
+
+Shape.prototype.update_bgcol = function(col) {
+	var gl = this.gl;
+	gl.clearColor(col[0], col[1], col[2], 1.0);
+	this.paint();
 }
 
 Shape.prototype.gl_init = function(cam_dist, opt) {
