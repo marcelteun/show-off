@@ -20,6 +20,37 @@ themselves with polyhedra, but as a 3D modeling format it is hardly used, since
 it lacks material descriptions: you can only specify a colour. You cannot
 specify faces with holes either.
 
+FILE TO USE: BUNDLE
+-------------------
+
+If you just want to use the JavaScript file directly, use the generated file:
+dist/show-off-bundle.js
+
+HOW TO GENERATE JS BUNDLE
+-------------------------
+
+You might want to generate the bundle yourself, e.g. when you are developing and
+you want to debug. In that case you would update webpack.config.js
+-  mode: 'production'
++  mode: 'development'
+And generate the bundle.
+
+In that case you will need to install and use NodeJS.
+On my Debian PC I get it from deb.nodesource.com, see
+https://github.com/nodesource/distributions
+for instructions.
+
+I build the JS bundle by:
+# npm install
+# npx webpack
+
+Then the bundle can be found in the dists directory.
+
+HOW TO USE JS BUNDLE
+--------------------
+
+The tst directory contains an example of how to use the show-off-bundle.js
+
 INTERFACE
 ---------
 
@@ -70,25 +101,6 @@ A triple touch resets all positioning.
 
 On can add a finger and switch to the other navigation, but one cannot switch
 back.
-
-HOW TO GENERATE JS BUNDLE
--------------------------
-
-This module uses NodeJS and you will need to install NodeJS.
-On my Debian PC I get it from deb.nodesource.com, see
-https://github.com/nodesource/distributions
-for instructions.
-
-I build the JS bundle by:
-# npm install
-# npx webpack
-
-Then the bundle can be found in the dists directory.
-
-HOW TO USE JS BUNDLE
---------------------
-
-The tst directory contains an example of how to use the show-off-bundle.js
 
 TODO
 ----
