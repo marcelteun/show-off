@@ -39,7 +39,7 @@ function draw_shape(off_file,
 	 *      has_concave_faces: boolean that specifies whether the model
 	 *                         contains concave faces. Default false.
 	 *      bg_col: background colour to use. This is an array specifying
-	 *              the red, green, blue channels as values between 0 andn
+	 *              the red, green, blue channels as values between 0 and
 	 *              1.  If nothing is specified, then black is used.
 	 *      The parameter itself is optional too.
 	 */
