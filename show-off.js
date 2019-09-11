@@ -25,6 +25,38 @@ import {mat3, mat4, quat, vec2, vec3, vec4} from 'gl-matrix';
 var DEG2RAD = Math.PI/360;
 var ARC_SCALE = 0.8; /* limit to switch rotation type for mouse */
 
+function draw_url_shape(off_url,
+		canvas_id,
+		cam_dist,
+		opt) {
+	/* Retrieve the specified off-file, interpret the file and draw it on
+	 * the canvas with the name 'canvas_id'.
+	 *
+	 * off_url: the complete url including the protocol.
+	 * See draw_shape for more info.
+	 */
+	var result = {};
+	var _opt = {};
+	if (opt !== undefined) {
+		_opt = opt;
+	}
+	fetch(off_url).then(function(response) {
+		if(response.ok) {
+			response.text().then(function(data) {
+				result.shape = new Shape(data,
+					canvas_id,
+					cam_dist,
+					_opt);
+			});
+		}
+	})
+	.catch(function(error) {
+		console.error("error fetching", off_file, error);
+	});
+
+	return result;
+}
+
 function draw_shape(off_file,
 		canvas_id,
 		cam_dist,
@@ -43,12 +75,12 @@ function draw_shape(off_file,
 	 *              1.  If nothing is specified, then black is used.
 	 *      The parameter itself is optional too.
 	 */
+	var result = {};
 	var prot = window.location.protocol;
 	var off_url = prot + "//" + window.location.host;
 	var path_ar = window.location.pathname.split('/');
 	var path = "";
 	var _opt = {};
-	var result = {};
 	if (opt !== undefined) {
 		_opt = opt;
 	}
@@ -65,19 +97,7 @@ function draw_shape(off_file,
 	off_url += "/";
 	off_url += off_file;
 	if (prot == "http:" || prot == "https:") {
-		fetch(off_url).then(function(response) {
-			if(response.ok) {
-				response.text().then(function(data) {
-					result.shape = new Shape(data,
-						canvas_id,
-						cam_dist,
-						_opt);
-				});
-			}
-		})
-		.catch(function(error) {
-			console.error("error fetching", off_file, error);
-		});
+		result = draw_url_shape(off_url, canvas_id, cam_dist, _opt);
 	} else if (prot == "file:") {
 		/*
 		 * File protocol is supported for testing purposes
@@ -229,15 +249,19 @@ function create_gl_context(canvas) {
 		if (!ctx) {
 			ctx = canvas.getContext("experimental-webgl", {stencil:true});
 		}
-		ctx.my = {};
-		ctx.my.viewport_width = canvas.width;
-		ctx.my.viewport_height = canvas.height;
+		if (!ctx) {
+			console.log('webgl context not supported for your browser / OS / driver');
+		} else {
+			ctx.my = {};
+			ctx.my.viewport_width = canvas.width;
+			ctx.my.viewport_height = canvas.height;
+		}
 	}
 	catch (e) {
 		console.error('error occurred', e);
 	}
 
-	if (ctx === undefined) {
+	if (!ctx) {
 		var tmp = canvas.getContext('2d');
 		tmp.font = "bold 20px Arial";
 		tmp.fillText("WebGL not supported", 10, 50);
@@ -1080,6 +1104,7 @@ Shape.prototype.on_paint = function() {
 
 global.draw_local_shape = draw_local_shape;
 global.draw_shape = draw_shape;
+global.draw_url_shape = draw_url_shape;
 
 export {
 	draw_local_shape,
