@@ -51,6 +51,10 @@ HOW TO USE JS BUNDLE
 
 The tst directory contains an example of how to use the show-off-bundle.js
 
+One can test run this locally by starting the simple-webserver (you will need to
+have Python installed). Then start a browser and open the following address:
+http://0.0.0.0:8000/index.html
+
 INTERFACE
 ---------
 
