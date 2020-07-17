@@ -288,6 +288,7 @@ function BaseShape(canvas_id, cam_dist, opt) {
 	this.canvas = document.getElementById(canvas_id);
 	this.resize_canvas(this.canvas);
 	this.gl = create_gl_context(this.canvas);
+	this.base = new Object();
 	if (this.gl === undefined) {
 		return;
 	}
@@ -678,9 +679,13 @@ BaseShape.prototype.gl_init = function(cam_dist, opt) {
 	 *      The parameter itself isn't.
 	 */
 	var gl = this.gl;
+	/*
+	 * proj_mat: related to camera projection
+	 * pos_mat: related to the position of all object due to user navigation
+	 * obj_mats: related to copies of object through transform
+	 */
 	gl.my.proj_mat = mat4.create();
 	gl.my.pos_mat = mat4.create();
-	gl.my.pos_mat_stack = [];
 	gl.my.cam_dist = cam_dist;
 	this.gl_reset_view();
 
@@ -775,26 +780,36 @@ BaseShape.prototype.get_shader_prog = function() {
 
 BaseShape.prototype.triangulate = function() {
 	/*
-	 * Divide all the faces in this.Fs, this.Vs and this.cols into
+	 * Divide all the faces in this.base.Fs, this.base.Vs and this.cols into
 	 * triangles and save in the result in this.gl.my.vs, this.gl.my.v_cols,
 	 * this.gl.my.fs and this.gl.my.ffs.
 	 *
 	 * this: should contain:
-	 *        - Vs: array of vertices, each element is a 3 dimensional array
-	 *          of floats.
-	 *        - Fs: array of faces. Each face consists of indices of Vs in a
-	 *          counter-clockwise order.
-	 *        - cols: array of face colors. The index in cols defines that
-	 *          the face with the same index in Fs has the specified colour.
-	 *          Each colour is an array of RGB values 0 <= colour <= 1.
+	 *        - base.Vs: array of vertices, each element is a 3 dimensional
+	 *          array of floats.
+	 *        - base.Fs: array of faces. Each face consists of indices of Vs
+	 *          in a counter-clockwise order.
+	 *        - cols: array of array of face colors. The first index refers
+	 *                to the index of the copy of the base shape. The second
+	 *                refers to the face with the same index in Fs has the
+	 *                specified colour. Each colour is an array of RGB
+	 *                values 0 <= colour <= 1.
+	 *        - gl.my.obj_mats: an array of 4x4 transform matrices
+	 *                          expressing the copied of the base shape.
+	 *                          Only the length is used here.
+	 *
+	 * Note: this.base.mat doesn't need to be defined at this stage. This
+	 * is important, since updating this base.mat doesn't require to rerun
+	 * this triangulate function.
+	 *
 	 * Result:
 	 *        this.gl.my.vs: an OpenGL vertex buffer object with the fields
 	 *            elem_len and no_of_elem. The latter expresses the amount
 	 *            of vertices, the former the length per vertex.
 	 *        this.gl.my.v_cols: an OpenGL vertex colour buffer object with
 	 *            the fields elem_len and no_of_elem. The latter expresses
-	 *            the amount of vertices, the former the length per vertex.
-	 *            Numitems should be equal to this.gl.my.vs.no_of_elem
+	 *            the amount of vertices times the amount of copies of the
+	 *            base shape, the former the length per vertex.
 	 *        this.gl.my.ns: an OpenGL normals buffer object with the fields
 	 *            elem_len and no_of_elem that specifies the normal to be
 	 *            used for that vertex.
@@ -818,14 +833,15 @@ BaseShape.prototype.triangulate = function() {
 	var cols = [];
 	var no_vs = 0;
 	gl.my.ffs = [];
-	for (var j = 0; j < this.Fs.length; j++) {
-		var f = this.Fs[j];
+	for (var j = 0; j < this.base.Fs.length; j++) {
+		var f = this.base.Fs[j];
 		var n = vec3.create();
 		triangle_normal(n,
-			this.Vs[f[0]], this.Vs[f[1]], this.Vs[f[2]]);
+			this.base.Vs[f[0]],
+			this.base.Vs[f[1]],
+			this.base.Vs[f[2]]);
 		for (var i = 0; i < f.length; i++) {
-			vs = vs.concat(this.Vs[f[i]]);
-			cols = cols.concat(this.cols[j]);
+			vs = vs.concat(this.base.Vs[f[i]]);
 			/* convert to std Array, otherwise concat doesn't work */
 			ns = ns.concat(Array.prototype.slice.call(n));
 		}
@@ -845,6 +861,13 @@ BaseShape.prototype.triangulate = function() {
 		gl_fs.elem_len = 1;
 		gl_fs.no_of_elem = f3s.length;
 		gl.my.ffs.push(gl_fs);
+	}
+	for (var k = 0; k < gl.my.obj_mats.length; k++) {
+		for (var j = 0; j < this.base.Fs.length; j++) {
+			for (var i = 0; i < this.base.Fs[j].length; i++) {
+				cols = cols.concat(this.cols[k][j]);
+			}
+		}
 	}
 
 	gl.my.vs = gl.createBuffer();
@@ -899,16 +922,9 @@ BaseShape.prototype.draw = function() {
 		gl.my.ns.elem_len, gl.FLOAT, false, 0, 0);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.v_cols);
-	gl.vertexAttribPointer(gl.my.shader_prog.v_col_attr,
-		gl.my.v_cols.elem_len, gl.FLOAT, false, 0, 0);
 
 	gl.uniform1f(gl.my.shader_prog.scale_f, gl.my.scale_f);
 	gl.uniformMatrix4fv(gl.my.shader_prog.proj_mat, false, gl.my.proj_mat);
-	gl.uniformMatrix4fv(gl.my.shader_prog.pos_mat, false, gl.my.pos_mat);
-
-	var norm_mat = mat3.create();
-	mat3.normalFromMat4(norm_mat, gl.my.pos_mat);
-	gl.uniformMatrix3fv(gl.my.shader_prog.norm_mat, false, norm_mat);
 
 	gl.uniform3f(gl.my.shader_prog.lgt_ambient_col,
 		 scene['light_ambient_r'],
@@ -934,43 +950,61 @@ BaseShape.prototype.draw = function() {
 		scene['light_dir_2_g'],
 		scene['light_dir_2_b']);
 
-	if (gl.my.use_stencil_buffer) {
-		/* Now draw each face with stencil buffer */
-		for (var i = 0; i < gl.my.ffs.length; i++) {
-			var f = gl.my.ffs[i];
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, f);
+	for (var k = 0; k < gl.my.obj_mats.length; k++) {
+		var obj_mat = mat4.create();
+		mat4.multiply(obj_mat, gl.my.obj_mats[k], this.base.mat);
+		mat4.multiply(obj_mat, gl.my.pos_mat, obj_mat);
+		gl.uniformMatrix4fv(gl.my.shader_prog.pos_mat, false, obj_mat);
 
-			// For the stencil buffer
-			gl.clear(gl.STENCIL_BUFFER_BIT);
-			gl.colorMask(false, false, false, false);
-			gl.depthMask(false);
-			// always pass stencil test
-			gl.stencilFunc(gl.ALWAYS, 1, 1);
-			// stencil fail: don't care, never fails
-			// z-fail: zero (don't care, depthMask = false)
-			// both pass: invert stencil values
-			gl.stencilOp(gl.KEEP, gl.ZERO, gl.INVERT);
-			// Create triangulated stencil:
-			gl.drawElements(gl.TRIANGLES, f.no_of_elem,
-							gl.UNSIGNED_SHORT, 0);
+		var norm_mat = mat3.create();
+		mat3.normalFromMat4(norm_mat, obj_mat);
+		gl.uniformMatrix3fv(gl.my.shader_prog.norm_mat, false, norm_mat);
 
-			// reset colour and depth settings
-			gl.depthMask(true);
-			gl.colorMask(true, true, true, true);
-			// Draw only where stencil equals 1 (masked to 1)
-			// gl.INVERT was used, i.e. in case of e.g. 8 bits the
-			// value is either 0 or 0xff, but only the last bit is
-			// checked.
-			gl.stencilFunc(gl.EQUAL, 1, 1);
-			gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
-			// Use triangulated stencil:
-			gl.drawElements(gl.TRIANGLES, f.no_of_elem,
-							gl.UNSIGNED_SHORT, 0);
+		/* 4 * 4 offset number of vertices, since:
+		 * - 4 bytes per float
+		 * - 4 colour channels per vertex
+		 *  */
+		gl.vertexAttribPointer(gl.my.shader_prog.v_col_attr,
+			gl.my.v_cols.elem_len, gl.FLOAT, false, 0,
+			16 * gl.my.vs.no_of_elem* k);
+		if (gl.my.use_stencil_buffer) {
+			/* Now draw each face with stencil buffer */
+			for (var i = 0; i < gl.my.ffs.length; i++) {
+				var f = gl.my.ffs[i];
+				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, f);
+
+				// For the stencil buffer
+				gl.clear(gl.STENCIL_BUFFER_BIT);
+				gl.colorMask(false, false, false, false);
+				gl.depthMask(false);
+				// always pass stencil test
+				gl.stencilFunc(gl.ALWAYS, 1, 1);
+				// stencil fail: don't care, never fails
+				// z-fail: zero (don't care, depthMask = false)
+				// both pass: invert stencil values
+				gl.stencilOp(gl.KEEP, gl.ZERO, gl.INVERT);
+				// Create triangulated stencil:
+				gl.drawElements(gl.TRIANGLES, f.no_of_elem,
+								gl.UNSIGNED_SHORT, 0);
+
+				// reset colour and depth settings
+				gl.depthMask(true);
+				gl.colorMask(true, true, true, true);
+				// Draw only where stencil equals 1 (masked to 1)
+				// gl.INVERT was used, i.e. in case of e.g. 8 bits the
+				// value is either 0 or 0xff, but only the last bit is
+				// checked.
+				gl.stencilFunc(gl.EQUAL, 1, 1);
+				gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+				// Use triangulated stencil:
+				gl.drawElements(gl.TRIANGLES, f.no_of_elem,
+								gl.UNSIGNED_SHORT, 0);
+			}
+		} else {
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.my.fs);
+			gl.drawElements(gl.TRIANGLES, gl.my.fs.no_of_elem,
+								gl.UNSIGNED_SHORT, 0);
 		}
-	} else {
-		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.my.fs);
-		gl.drawElements(gl.TRIANGLES, gl.my.fs.no_of_elem,
-							gl.UNSIGNED_SHORT, 0);
 	}
 }
 
@@ -985,8 +1019,7 @@ BaseShape.prototype.on_paint = function() {
 }
 
 /*
- * Shappe is used to show OFF files
- * Inherit from BaseShape
+ * Shape is used to show OFF files
  */
 function Shape(off_data, canvas_id, cam_dist, opt) {
 	BaseShape.call(this, canvas_id, cam_dist, opt);
@@ -995,7 +1028,7 @@ function Shape(off_data, canvas_id, cam_dist, opt) {
 	this.first_paint();
 }
 
-// Inherit methods
+// Inherit from BaseShape
 Shape.prototype = Object.create(BaseShape.prototype);
 
 Shape.prototype.get_off_shape = function(data) {
@@ -1028,22 +1061,27 @@ Shape.prototype.get_off_shape = function(data) {
 				var nrOfVs = parseInt(words[0]);
 				var nrOfFs = parseInt(words[1]);
 				var nrOfEs = parseInt(words[2]);
-				this.Vs = new Array(nrOfVs);
-				this.Fs = new Array(nrOfFs);
-				this.Es = [];
-				this.cols = new Array(nrOfFs);
-				console.log('reading', nrOfVs, 'Vs', nrOfFs, 'Fs (', nrOfEs, 'edges)');
+				this.base.Vs = new Array(nrOfVs);
+				this.base.Fs = new Array(nrOfFs);
+				this.base.Es = [];
+				/*
+				 * array of array to support OrbitShape:
+				 * here one transfor, ie. one set of colours
+				 */
+				this.cols = [new Array(nrOfFs)];
+				console.log('reading', nrOfVs,
+					'Vs', nrOfFs, 'Fs (', nrOfEs, 'edges)');
 				state = states.readVs;
 				break;
 			case states.readVs:
 				error = words.length < 3;
 				if (!error) {
-					this.Vs[nrRead] = [
+					this.base.Vs[nrRead] = [
 						parseFloat(words[0]),
 						parseFloat(words[1]),
 						parseFloat(words[2])];
 					nrRead += 1;
-					if (nrRead >= this.Vs.length) {
+					if (nrRead >= this.base.Vs.length) {
 						state = states.readFs;
 						nrRead = 0;
 					}
@@ -1061,7 +1099,7 @@ Shape.prototype.get_off_shape = function(data) {
 						face[j] = parseInt(words[j+1]);
 					}
 					if (n >= 3) {
-						this.Fs[nrRead] = face;
+						this.base.Fs[nrRead] = face;
 						var col = new Array(3);
 						if (words.length == n + 1) {
 							col = [0.8, 0.8, 0.8];
@@ -1078,13 +1116,13 @@ Shape.prototype.get_off_shape = function(data) {
 						}
 						// add alpha = 1
 						col.push(1);
-						this.cols[nrRead] = col;
+						this.cols[0][nrRead] = col;
 						nrRealFaces += 1;
 					} else if (n == 2) {
-						this.Es.push(face);
+						this.base.Es.push(face);
 					} // else ignore, but count
 					nrRead += 1;
-					if (nrRead >= this.Fs.length) {
+					if (nrRead >= this.base.Fs.length) {
 						state = states.readOk;
 						console.log('Done reading OFF file');
 						nrRead = 0;
@@ -1100,11 +1138,17 @@ Shape.prototype.get_off_shape = function(data) {
 			}
 		}
 	}
+	/* To support OrbitShape, here just one transform */
+	this.gl.my.obj_mats = [mat4.create()];
+	this.base.mat = mat4.create();
 	if (state != states.readOk) {
 		throw 'Error reading OFF file';
 	}
-	this.Fs = this.Fs.slice(0, nrRealFaces);
+	this.base.Fs = this.base.Fs.slice(0, nrRealFaces);
 }
+
+// Inherit from BaseShape
+OrbitShape.prototype = Object.create(BaseShape.prototype);
 
 global.draw_local_shape = draw_local_shape;
 global.draw_shape = draw_shape;
@@ -1115,4 +1159,4 @@ export {
 	draw_shape
 };
 
-// vim: set noexpandtab sw=8
+// vim: noexpandtab: sw=8
