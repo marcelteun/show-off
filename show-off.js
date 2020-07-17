@@ -1147,16 +1147,79 @@ Shape.prototype.get_off_shape = function(data) {
 	this.base.Fs = this.base.Fs.slice(0, nrRealFaces);
 }
 
+function to_mat4(m) {
+	return mat4.fromValues(
+		m[0][0], m[0][1], m[0][2], m[0][3],
+		m[1][0], m[1][1], m[1][2], m[1][3],
+		m[2][0], m[2][1], m[2][2], m[2][3],
+		m[3][0], m[3][1], m[3][2], m[3][3]);
+}
+
+/*
+ * OrbitShape is used to show base shape with copies by isometries
+ */
+function OrbitShape(descriptive, transforms, canvas_id, cam_dist, opt) {
+	/* Create a 3D shape based on isometry operations.
+	 *
+	 * descriptive: object with properties Vs, Fs and transform:
+	 *              descriptive.Vs: the 3D coordinates of the vertices of
+	 *                              the descriptive
+	 *              descriptive.Fs: which vertex indices that need to be
+	 *                              connected to get the faces of the
+	 *                              descriptive.
+	 *              descriptive.transform: a 4x4 matrix defining the
+	 *                                     transform. the is applied to the
+	 *                                     descriptive. The matrix is
+	 *                                     defined in rows and columns.
+	 * transforms: An array of 4x4 matrices. These will all be applied onto
+	 *             the descriptive after the initial transform. Each
+	 *             transform will also contain a property field col, which
+	 *             is an array of 3 elements between 0 and 1 defining the
+	 *             RGB colour of the transformed shape.
+	 * For the other parameters, see draw_shape.
+	 */
+	BaseShape.call(this, canvas_id, cam_dist, opt);
+
+	this.base = new Object()
+	this.base.Vs = descriptive.Vs;
+	this.base.Fs = descriptive.Fs;
+	this.base.mat = to_mat4(descriptive.transform);
+
+	this.gl.my.obj_mats = new Array(transforms.length);
+	this.cols = new Array(transforms.length);
+	for (var i = 0; i < transforms.length; i++) {
+		this.gl.my.obj_mats[i] =to_mat4(transforms[i])
+		this.cols[i] = new Array(this.base.Fs.length);
+		var col = transforms[i].col.slice();
+		// add alpha channel = 1
+		col.push(1);
+		for (var j = 0; j < this.base.Fs.length; j++) {
+			this.cols[i][j] = col;
+		}
+	}
+	this.first_paint();
+}
+
 // Inherit from BaseShape
 OrbitShape.prototype = Object.create(BaseShape.prototype);
+
+OrbitShape.prototype.rotate_descriptive = function(axis, rad) {
+	if (typeof rad === 'undefined' || typeof axis === 'undefined') {
+		return;
+	}
+	mat4.fromRotation(this.base.mat, rad, axis);
+	this.paint();
+}
 
 global.draw_local_shape = draw_local_shape;
 global.draw_shape = draw_shape;
 global.draw_url_shape = draw_url_shape;
+global.OrbitShape = OrbitShape;;
 
 export {
 	draw_local_shape,
-	draw_shape
+	draw_shape,
+	OrbitShape
 };
 
 // vim: noexpandtab: sw=8
