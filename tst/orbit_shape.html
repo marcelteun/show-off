@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Show off-file</title>
+
+  <script src="js/show-off-bundle.js"></script>
+</head>
+
+
+<body>
+<div style="width:610px;">
+  <h1>A Cube Made of Six Squares with OrbitShape </h1>
+  <div style="float:left; width:600px">
+    <p>
+    Here is an example of reusing a base shape for a symmetric object. The base
+    shape is a square. The cube is defined by transforming the square six times.
+    The base shape can be rotated using the slider. The result is that all
+    squares are rotated in the same way.
+    </p>
+  </div>
+  <div style="float:left; width:600px">
+    <canvas id="doek" style="border: none;" width="500" height="500"></canvas>
+  </div>
+  <div>
+  <script>
+    var square = new Object();
+    square.Vs = [
+      [1, 1, 1],
+      [-1, 1, 1],
+      [-1, -1, 1],
+      [1, -1, 1]
+    ];
+    square.Fs = [[0, 1, 2, 3]];
+    square.transform = [
+      [1, 0, 0, 0],
+      [0, 1, 0, 0],
+      [0, 0, 1, 0],
+      [0, 0, 0, 1]];
+    isoms = [
+      [
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1]
+      ], [
+        [1, 0, 0, 0],
+        [0, 0, -1, 0],
+        [0, 1, 0, 0],
+        [0, 0, 0, 1]
+      ], [
+        [1, 0, 0, 0],
+        [0, 0, 1, 0],
+        [0, -1, 0, 0],
+        [0, 0, 0, 1]
+      ], [
+        [0, 0, 1, 0],
+        [0, 1, 0, 0],
+        [-1, 0, 0, 0],
+        [0, 0, 0, 1]
+      ], [
+        [0, 0, -1, 0],
+        [0, 1, 0, 0],
+        [1, 0, 0, 0],
+        [0, 0, 0, 1]
+      ], [
+        [-1, 0, 0, 0],
+        [0, -1, 0, 0],
+        [0, 0, -1, 0],
+        [0, 0, 0, 1]
+      ],
+    ];
+    var red = [0.8, 0.1, 0.1];
+    var yel = [0.8, 0.8, 0.1];
+    var blu = [0.1, 0.1, 0.8];
+    isoms[0].col = red;
+    isoms[1].col = yel;
+    isoms[2].col = yel;
+    isoms[3].col = blu;
+    isoms[4].col = blu;
+    isoms[5].col = red;
+
+    var cube = new OrbitShape(square, isoms, 'doek', 8, {has_concave_faces: false});
+  </script>
+  </div>
+  <div>
+    <input type="range" min="-0.7854" max="0.7854" value="0" step="0.01" id="rot_angle">
+    <script>
+      var slider = document.getElementById("rot_angle");
+      slider.oninput = function() {
+        cube.rotate_descriptive([0, 0, 1], this.value);
+      }
+    </script>
+  </div>
+</div>
+</div>
+</body>
+</html>
