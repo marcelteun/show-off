@@ -7,8 +7,7 @@
   <script src="js/show-off-bundle.js"></script>
 </head>
 
-
-<body onload="draw_shape('off/cube.off', 'doek', 5);">
+<body style="width:850px" onload="draw_shape('off/cube.off', 'doek', 5);">
 <div>
   <p>
   Below you can check some prepared OFF-files that are located on the web
@@ -24,10 +23,10 @@
     If you exchange left en right the coordinates from the event in
     on_mouse_down e.g. needs to be offset.
   -->
-  <div style="float:left; width:600px">
+  <div style="float:left;width:600px;">
     <canvas id="doek" style="border: none;" width="500" height="500"></canvas>
   </div>
-  <div style="float:right; width:200px; height:320px; overflow:auto;">
+  <div style="float:right; width:200px; height:500px;overflow:auto;">
     <p>Select a model from the list.</p>
 
     <select id="mySelect" onchange="on_select()">
@@ -50,6 +49,61 @@
       }
     </script>
   </div>
+</div>
+<div style="float:left;">
+  <h2>Navigation by Mouse and Keyboard</h2>
+  <p>
+  Left click a mouse and move it to rotate the object, normally in an intuitive
+  way: it is as if you touch a ball an spin it. This way isn't implemented all
+  the way through though, since I also wanted that if you return to your
+  starting point and release the object should have its original orientation.
+  It is also possible to rotate the object around an axis that sticks out of the
+  canvas. This can be done by clicking and dragging along the edges of the
+  canvas.
+  </p><p>
+  Because I also wanted the object to get back to its initial position
+  when releasing it at the same spot, some strange effects can be seen when
+  taking up the object in the centre of the canvas (by clicking) move it to a
+  side, rotate it 180 degrees around an axis orthogonal to the canvas and then
+  drag it back to the centre of the canvas.
+  </p><p>
+  Zooming can be done by pressing the shift and using the main mouse-click.
+  Other actions:
+  </p>
+  <ul>
+    <li>
+      Undo zoom and rotate (original position): '5'.
+    </li><li>
+      Undo zoom only: shift-5.
+    </li><li>
+      Undo rotate only: alt-5.
+    </li><li>
+      The mouse wheel works for zooming as well, but the speed might be low.
+    </li>
+  </ul>
+  <p>
+  By default concave polygons are supported by means of a stencil buffer. This
+  means that two passes are required and all faces need to be considered
+  separately.  This isn't very efficient, so there is a way to optimise this for
+  objects that only have convex faces: The key 'c' is used to toggle support for
+  concave and convex faces.
+  </p>
+  <h2>Navigation by Touch Screen</h2>
+  <p>
+  The following actions are support for touch screen:
+  </p>
+  <ul>
+    <li>
+      Rotate: single touch and drag. The rotation axis is defined in the same
+      way as for the mouse. See previous section.
+    </li><li>
+      Zoom in: double touch and increase distance between the two fingers.
+    </li><li>
+      Zoom out: double touch and decrease distance between the two fingers.
+    </li><li>
+      Jump back to original orientation: triple touch.
+    </li>
+  </ul>
 </div>
 </body>
 </html>
