@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <title>Choose off-file</title>
 
-  <script src="js/show-off-bundle.js"></script>
+  <script src="/js/show-off-bundle.js"></script>
 </head>
 
-<body style="width:850px" onload="draw_shape('off/cube.off', 'doek', 5);">
+<body style="width:850px" onload="draw_url_shape('off/cube.off', 'doek', 5);">
 <div>
   <p>
   Below you can check some prepared OFF-files that are located on the web
@@ -44,7 +44,7 @@
       function on_select() {
         var x = document.getElementById("mySelect").value;
         var pars = x.split(":");
-        draw_shape(pars[0],
+        draw_url_shape(pars[0],
                    'doek', pars[1], {has_concave_faces: pars[2] == "1"});
       }
     </script>
