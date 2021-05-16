@@ -29,13 +29,8 @@ dist/show-off-bundle.js
 HOW TO GENERATE JS BUNDLE
 -------------------------
 
-You might want to generate the bundle yourself, e.g. when you are developing and
-you want to debug. In that case you would update webpack.config.js
--  mode: 'production'
-+  mode: 'development'
-And generate the bundle.
-
-In that case you will need to install and use NodeJS.
+You might want to generate the bundle yourself, e.g. when you are developing. In
+that case you will need to install and use NodeJS.
 On my Debian PC I get it from deb.nodesource.com, see
 https://github.com/nodesource/distributions
 for instructions.
@@ -43,6 +38,11 @@ for instructions.
 I build the JS bundle by:
 # npm install
 # npx webpack
+( or
+  # npm run-script build
+)
+To generate a version that can be debugged, run the following
+# npm run-script test
 
 Then the bundle can be found in the dists directory.
 
