@@ -207,6 +207,8 @@ var vert_shader = `
 	varying vec3 v_light_weight;
 
 	uniform float scale_f;
+	uniform float fade_factor;
+	uniform float fade_offset;
 
 	void main(void) {
 		vec3 v;
@@ -223,6 +225,9 @@ var vert_shader = `
 		cos_a = dot(norm, lgt_dir_2);
 		w_lgt_dir = max(cos_a, -cos_a);
 		v_light_weight += lgt_dir_2_col * w_lgt_dir;
+		float light_scale = fade_factor * gl_Position.z/gl_Position.w + fade_offset;
+		light_scale = min(1.0, light_scale);
+		v_light_weight *= light_scale;
 	}
 `;
 
@@ -687,6 +692,8 @@ BaseShape.prototype.gl_init = function(cam_dist, opt) {
 	gl.my.proj_mat = mat4.create();
 	gl.my.pos_mat = mat4.create();
 	gl.my.cam_dist = cam_dist;
+	gl.my.fade_factor = 0.0;
+	gl.my.fade_offset = 1.0;
 	this.gl_reset_view();
 
 	var r = ARC_SCALE * Math.min(gl.my.viewport_width, gl.my.viewport_height) / 2;
@@ -763,6 +770,8 @@ BaseShape.prototype.get_shader_prog = function() {
 	shader_prog.proj_mat = gl.getUniformLocation(shader_prog, "proj_mat");
 	shader_prog.pos_mat = gl.getUniformLocation(shader_prog, "pos_mat");
 	shader_prog.norm_mat = gl.getUniformLocation(shader_prog, "norm_mat");
+	shader_prog.fade_factor = gl.getUniformLocation(shader_prog, "fade_factor");
+	shader_prog.fade_offset = gl.getUniformLocation(shader_prog, "fade_offset");
 
 	shader_prog.lgt_ambient_col = gl.getUniformLocation(shader_prog,
 							"lgt_ambient_col");
@@ -895,23 +904,69 @@ BaseShape.prototype.triangulate = function() {
 	gl.my.fs.no_of_elem = fs.length;
 }
 
-BaseShape.prototype.draw = function() {
-	var gl = this.gl;
-
-	gl.viewport(0, 0, gl.my.viewport_width, gl.my.viewport_height);
-	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-	/* TODO: get max R value and add to cam_dist (+ some margin) */
-	mat4.perspective(gl.my.proj_mat,
-		45.0*DEG2RAD, gl.my.viewport_width / gl.my.viewport_height, 0.1, 4*gl.my.cam_dist);
-
+BaseShape.prototype.calc_pos_mat = function() {
 	if (this.rotating) {
 		var q;
 		q = quat.create();
 		quat.mul(q, this.q_drag_rot, this.q_cur_rot);
 		mat4.fromRotationTranslation(
-			gl.my.pos_mat, q, [0.0, 0.0, -gl.my.cam_dist]);
+			this.gl.my.pos_mat, q, [0.0, 0.0, -this.gl.my.cam_dist]);
 	}
+}
+
+BaseShape.prototype.calc_min_depth = function() {
+	var gl = this.gl;
+	var z_min = 1;
+
+	/* TODO: get max R value and add to cam_dist (+ some margin) */
+	mat4.perspective(gl.my.proj_mat,
+		45.0*DEG2RAD, gl.my.viewport_width / gl.my.viewport_height, 0.1, 4*gl.my.cam_dist);
+	this.calc_pos_mat();
+
+	for (var k = 0; k < gl.my.obj_mats.length; k++) {
+		var obj_mat = mat4.create();
+		mat4.multiply(obj_mat, gl.my.obj_mats[k], this.base.mat);
+		mat4.multiply(obj_mat, gl.my.pos_mat, obj_mat);
+		mat4.multiply(obj_mat, gl.my.proj_mat, obj_mat);
+
+		mat4.mul(obj_mat, gl.my.proj_mat, gl.my.pos_mat);
+		for (var ii = 0; ii < this.base.Vs.length; ii++) {
+			var v3 = this.base.Vs[ii];
+			var v4 = vec4.fromValues(v3[0], v3[1], v3[2], 1.0);
+			vec4.transformMat4(v4, v4, obj_mat);
+			var z_c = v4[2]/v4[3]
+			if (z_c < z_min) {
+				z_min = z_c;
+			}
+		}
+	}
+	/* TODO: make config min_factor, which should be in [0; 1]? */
+	var min_factor = 0.01;
+	/*
+	 *            |
+	 *          1 +----- .
+	 *            |       \
+	 *            |        \
+	 *            |         \
+	 *            |          \
+	 * min_factor +           .
+	 *            |
+	 *            +------+----+----
+	 *           O   z_min    1.0
+	 */
+	gl.my.fade_factor = (min_factor - 1.0) / (1.0 - z_min);
+	gl.my.fade_offset = min_factor - gl.my.fade_factor;
+}
+
+BaseShape.prototype.draw = function() {
+	var gl = this.gl;
+
+	this.calc_pos_mat();
+	gl.viewport(0, 0, gl.my.viewport_width, gl.my.viewport_height);
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+	gl.uniform1f(gl.my.shader_prog.fade_factor, gl.my.fade_factor);
+	gl.uniform1f(gl.my.shader_prog.fade_offset, gl.my.fade_offset);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.vs);
 	gl.vertexAttribPointer(gl.my.shader_prog.v_pos_attr,
@@ -1015,6 +1070,7 @@ BaseShape.prototype.first_paint = function() {
 }
 
 BaseShape.prototype.on_paint = function() {
+	this.calc_min_depth();
 	this.draw();
 }
 
