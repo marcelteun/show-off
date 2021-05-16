@@ -1,15 +1,12 @@
-const path = require('path');
+const { merge } = require('webpack-merge');
+const common = require('./webpack.common.js');
 const TerserPlugin = require('terser-webpack-plugin');
 
-module.exports = {
-  entry: './show-off.js',
+module.exports = merge(common, {
   optimization: {
     minimize: true,
     minimizer: [new TerserPlugin()],
   },
-  output: {
-    filename: 'show-off-bundle.js',
-    path: path.resolve(__dirname, 'dist')
-  },
-  mode: 'production'
-};
+  mode: 'production',
+  devtool: 'source-map',
+});
