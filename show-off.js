@@ -165,16 +165,16 @@ var scene = {
 	'light_ambient_b': 0.4,
 
 	/* directional light (will be normalized `*/
-	'light_dir_1': [-2, -2, -1.5],
+	'light_dir_1': [-2, 2, -2.5],
 	'light_dir_1_r': 0.4,
 	'light_dir_1_g': 0.4,
-	'light_dir_1_b': 0.4,
+	'light_dir_1_b': 0.35,
 
 	/* directional light (will be normalized `*/
-	'light_dir_2': [0.5, -1, -0.5],
+	'light_dir_2': [1.0, -0.5, -1.5],
 	'light_dir_2_r': 0.2,
 	'light_dir_2_g': 0.2,
-	'light_dir_2_b': 0.2,
+	'light_dir_2_b': 0.25,
 };
 
 var frag_shader = `
