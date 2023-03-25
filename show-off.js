@@ -22,6 +22,12 @@
 const raf = require('raf');
 import {mat3, mat4, quat, vec2, vec3, vec4} from 'gl-matrix';
 
+export {
+	draw_local_shape,
+	draw_shape,
+	OrbitShape
+};
+
 var DEG2RAD = Math.PI/360;
 var ARC_SCALE = 0.8; /* limit to switch rotation type for mouse */
 
@@ -787,9 +793,9 @@ BaseShape.prototype.get_shader_prog = function() {
 	return shader_prog;
 }
 
-BaseShape.prototype.triangulate = function() {
+BaseShape.prototype.prepare_buffers = function() {
 	/*
-	 * Divide all the faces in this.base.Fs, this.base.Vs and this.cols into
+	 * Divide all the faces in this.base.Fs, this.base.Vs and this.fs_cols into
 	 * triangles and save in the result in this.gl.my.vs, this.gl.my.v_cols,
 	 * this.gl.my.fs and this.gl.my.ffs.
 	 *
@@ -809,7 +815,7 @@ BaseShape.prototype.triangulate = function() {
 	 *
 	 * Note: this.base.mat doesn't need to be defined at this stage. This
 	 * is important, since updating this base.mat doesn't require to rerun
-	 * this triangulate function.
+	 * this prepare_buffers function.
 	 *
 	 * Result:
 	 *        this.gl.my.vs: an OpenGL vertex buffer object with the fields
@@ -836,6 +842,7 @@ BaseShape.prototype.triangulate = function() {
 	 *            no stencil buffer is used.
 	 */
 	var gl = this.gl
+	var es = [];
 	var fs = [];
 	var vs = [];
 	var ns = [];
@@ -874,9 +881,22 @@ BaseShape.prototype.triangulate = function() {
 	for (var k = 0; k < gl.my.obj_mats.length; k++) {
 		for (var j = 0; j < this.base.Fs.length; j++) {
 			for (var i = 0; i < this.base.Fs[j].length; i++) {
-				cols = cols.concat(this.cols[k][j]);
+				cols = cols.concat(this.fs_cols[k][j]);
 			}
 		}
+	}
+	for (var j = 0; j < this.base.Es.length; j++) {
+		var e = this.base.Es[j];
+		/* convert to std Array, otherwise concat doesn't work */
+		var n = Array.prototype.slice.call(vec3.fromValues(0, 0, 1));
+		/* no need for loop, an edge consists of two vertices */
+		vs = vs.concat(this.base.Vs[e[0]]);
+		ns = ns.concat(n);
+		es.push(no_vs);
+		vs = vs.concat(this.base.Vs[e[1]]);
+		ns = ns.concat(n);
+		es.push(no_vs + 1);
+		no_vs += 2;
 	}
 
 	gl.my.vs = gl.createBuffer();
@@ -902,6 +922,14 @@ BaseShape.prototype.triangulate = function() {
 	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(fs), gl.STATIC_DRAW);
 	gl.my.fs.elem_len = 1;
 	gl.my.fs.no_of_elem = fs.length;
+
+	if (this.base.Es.length > 0) {
+		gl.my.es = gl.createBuffer();
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.my.es);
+		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(es), gl.STATIC_DRAW);
+		gl.my.es.elem_len = 1;
+		gl.my.es.no_of_elem = es.length;
+	}
 }
 
 BaseShape.prototype.calc_pos_mat = function() {
@@ -1060,11 +1088,23 @@ BaseShape.prototype.draw = function() {
 			gl.drawElements(gl.TRIANGLES, gl.my.fs.no_of_elem,
 								gl.UNSIGNED_SHORT, 0);
 		}
+		/* Draw edges here */
+		/* See
+		 * http://what-when-how.com/opengl-programming-guide/polygon-offset-blending-antialiasing-fog-and-polygon-offset-opengl-programming/
+		 */
+		if (this.base.Es.length > 0) {
+			gl.enable(gl.POLYGON_OFFSET_FILL);
+			gl.polygonOffset(-1, -1);
+			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.my.es);
+			gl.drawElements(gl.LINES, gl.my.es.no_of_elem,
+								gl.UNSIGNED_SHORT, 0);
+			gl.disable(gl.POLYGON_OFFSET_FILL);
+		}
 	}
 }
 
 BaseShape.prototype.first_paint = function() {
-	this.triangulate();
+	this.prepare_buffers();
 	this.on_paint();
 	this.input_init();
 }
@@ -1119,12 +1159,13 @@ Shape.prototype.get_off_shape = function(data) {
 				var nrOfEs = parseInt(words[2]);
 				this.base.Vs = new Array(nrOfVs);
 				this.base.Fs = new Array(nrOfFs);
-				this.base.Es = [];
 				/*
 				 * array of array to support OrbitShape:
-				 * here one transfor, ie. one set of colours
+				 * here one transform, ie. one set of colours
 				 */
-				this.cols = [new Array(nrOfFs)];
+				this.fs_cols = [new Array(nrOfFs)];
+				this.base.Es = [];
+				this.es_cols = [];
 				console.log('reading', nrOfVs,
 					'Vs', nrOfFs, 'Fs (', nrOfEs, 'edges)');
 				state = states.readVs;
@@ -1155,7 +1196,7 @@ Shape.prototype.get_off_shape = function(data) {
 						face[j] = parseInt(words[j+1]);
 					}
 					if (n >= 3) {
-						this.base.Fs[nrRead] = face;
+						this.base.Fs[nrRealFaces] = face;
 						var col = new Array(3);
 						if (words.length == n + 1) {
 							col = [0.8, 0.8, 0.8];
@@ -1172,10 +1213,27 @@ Shape.prototype.get_off_shape = function(data) {
 						}
 						// add alpha = 1
 						col.push(1);
-						this.cols[0][nrRead] = col;
+						this.fs_cols[0][nrRealFaces] = col;
 						nrRealFaces += 1;
 					} else if (n == 2) {
 						this.base.Es.push(face);
+						var col = new Array(3);
+						if (words.length == n + 1) {
+							col = [0.1, 0.1, 0.1];
+						} else {
+							for (var j = 0; j < 3; j++) {
+								var s_chl = words[n+1+j];
+								var chl = s_chl * 1;
+								if (is_float(s_chl)) {
+									col[j] = chl;
+								} else {
+									col[j] = chl / 255;
+								}
+							}
+						}
+						// add alpha = 1
+						col.push(1);
+						this.es_cols.push(col);
 					} // else ignore, but count
 					nrRead += 1;
 					if (nrRead >= this.base.Fs.length) {
@@ -1242,15 +1300,15 @@ function OrbitShape(descriptive, transforms, canvas_id, cam_dist, opt) {
 	this.base.mat = to_mat4(descriptive.transform);
 
 	this.gl.my.obj_mats = new Array(transforms.length);
-	this.cols = new Array(transforms.length);
+	this.fs_cols = new Array(transforms.length);
 	for (var i = 0; i < transforms.length; i++) {
 		this.gl.my.obj_mats[i] =to_mat4(transforms[i])
-		this.cols[i] = new Array(this.base.Fs.length);
+		this.fs_cols[i] = new Array(this.base.Fs.length);
 		var col = transforms[i].col.slice();
 		// add alpha channel = 1
 		col.push(1);
 		for (var j = 0; j < this.base.Fs.length; j++) {
-			this.cols[i][j] = col;
+			this.fs_cols[i][j] = col;
 		}
 	}
 	this.first_paint();
@@ -1271,11 +1329,5 @@ global.draw_local_shape = draw_local_shape;
 global.draw_shape = draw_shape;
 global.draw_url_shape = draw_url_shape;
 global.OrbitShape = OrbitShape;;
-
-export {
-	draw_local_shape,
-	draw_shape,
-	OrbitShape
-};
 
 // vim: noexpandtab: sw=8
