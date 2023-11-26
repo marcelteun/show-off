@@ -22,6 +22,13 @@
 const raf = require('raf');
 import {mat3, mat4, quat, vec2, vec3, vec4} from 'gl-matrix';
 
+export {
+	draw_local_shape,
+	draw_shape,
+	OrbitShape,
+	MorphShape
+};
+
 var DEG2RAD = Math.PI/360;
 var ARC_SCALE = 0.8; /* limit to switch rotation type for mouse */
 
@@ -236,16 +243,6 @@ function is_float(n_str) {
 	return n_str.indexOf(".") > 0;
 }
 
-function triangle_normal(n, v0, v1, v2) {
-	var d1 = vec3.create();
-	var d2 = vec3.create();
-	vec3.subtract(d1, v1, v0);
-	vec3.subtract(d2, v2, v0);
-	vec3.cross(n, d1, d2);
-	vec3.normalize(n, n);
-	return n;
-}
-
 function create_gl_context(canvas) {
 	var ctx;
 	try {
@@ -293,6 +290,8 @@ function BaseShape(canvas_id, cam_dist, opt) {
 	this.canvas = document.getElementById(canvas_id);
 	this.resize_canvas(this.canvas);
 	this.gl = create_gl_context(this.canvas);
+	/* To support OrbitShape, here just one transform */
+	this.gl.my.obj_mats = [mat4.create()];
 	this.base = new Object();
 	if (this.gl === undefined) {
 		return;
@@ -787,6 +786,40 @@ BaseShape.prototype.get_shader_prog = function() {
 	return shader_prog;
 }
 
+BaseShape.prototype.get_face_normal = function(n, f) {
+	var d1 = vec3.create();
+	var d2 = vec3.create();
+	var v0 = this.base.Vs[f[0]]
+	var v1;
+	var ll1;
+	var i;
+	var min = 1e-10;
+	for (i = 1; i < f.length - 1; i++) {
+		v1 = this.base.Vs[f[i]];
+		vec3.subtract(d1, v1, v0);
+		ll1 = vec3.sqrLen(d1);
+		if (ll1 > min) {
+			break;
+		}
+	}
+	var v2;
+	var ll2;
+	for (var j = i + 1; j < f.length; j++) {
+		v2 = this.base.Vs[f[j]];
+		vec3.subtract(d2, v2, v0);
+		ll2 = vec3.sqrLen(d1);
+		if (ll2 > min) {
+			break;
+		}
+	}
+	if ((ll1 <= min) || (ll2 <= min)) {
+		console.log(' Warning problems calculating face normal', ll1, ll2);
+	}
+	vec3.cross(n, d1, d2);
+	vec3.normalize(n, n);
+	return n;
+}
+
 BaseShape.prototype.triangulate = function() {
 	/*
 	 * Divide all the faces in this.base.Fs, this.base.Vs and this.cols into
@@ -845,10 +878,7 @@ BaseShape.prototype.triangulate = function() {
 	for (var j = 0; j < this.base.Fs.length; j++) {
 		var f = this.base.Fs[j];
 		var n = vec3.create();
-		triangle_normal(n,
-			this.base.Vs[f[0]],
-			this.base.Vs[f[1]],
-			this.base.Vs[f[2]]);
+		this.get_face_normal(n, f);
 		for (var i = 0; i < f.length; i++) {
 			vs = vs.concat(this.base.Vs[f[i]]);
 			/* convert to std Array, otherwise concat doesn't work */
@@ -1194,8 +1224,6 @@ Shape.prototype.get_off_shape = function(data) {
 			}
 		}
 	}
-	/* To support OrbitShape, here just one transform */
-	this.gl.my.obj_mats = [mat4.create()];
 	this.base.mat = mat4.create();
 	if (state != states.readOk) {
 		throw 'Error reading OFF file';
@@ -1267,15 +1295,74 @@ OrbitShape.prototype.rotate_descriptive = function(axis, rad) {
 	this.paint();
 }
 
+/*
+ * MorphShape is used to show base shape with copies by isometries
+ */
+function MorphShape(descriptive, canvas_id, cam_dist, opt) {
+	/* Create a 3D shape for which vertices can morph linearly
+	 *
+	 * descriptive: object with properties Vs, Fs and transform:
+	 *              descriptive.vs_0: the 3D coordinates of the initial
+	 *                                vertices of the descriptive. vs_0 and
+	 *                                dvs should have the same length.
+	 *              descriptive.dvs: the 3D vector so that vs_0 + dvs gives
+	 *                               the final vertices of the descriptive.
+	 *                               vs_0 and dvs should have the same
+	 *                               length.
+	 *              descriptive.Fs: which vertex indices that need to be
+	 *                              connected to get the faces of the
+	 *                              descriptive.
+	 *              descriptive.cols: defines the RGB colour for each face.
+	 *                                Each colour channel value is part of
+	 *                                [0, 255]
+	 * For the other parameters, see draw_shape.
+	 */
+	BaseShape.call(this, canvas_id, cam_dist, opt);
+
+	this.base = new Object()
+	this.base.vs_0 = descriptive.vs_0;
+	this.base.dvs = descriptive.dvs;
+	this.base.Vs = [new Array(descriptive.vs_0.length)];
+	for (var i = 0; i < descriptive.vs_0.length; i++) {
+		//this.base.Vs[i] = vec3.create();
+		this.base.Vs[i] = [new Array(3)];
+		vec3.copy(this.base.Vs[i], descriptive.vs_0[i]);
+	}
+	this.base.Fs = descriptive.fs;
+	this.base.mat = mat4.create();
+	this.cols = [new Array(descriptive.fs.length)];
+	this.gl.my.obj_mats = [mat4.create()];
+	for (var i = 0; i < descriptive.fs.length; i++) {
+		this.cols[0][i] = new Array(4);
+		for (var j = 0; j < 3; j++) {
+			this.cols[0][i][j] = descriptive.cols[i][j] / 255;
+		}
+		// set alpha channel
+		this.cols[0][i][3] = 1;
+	}
+	this.first_paint();
+}
+
+// Inherit from BaseShape
+MorphShape.prototype = Object.create(BaseShape.prototype);
+
+MorphShape.prototype.morph_descriptive = function(s) {
+	if (typeof s === 'undefined') {
+		return;
+	}
+	var dv = vec3.create();
+	for (var i = 0; i < this.base.Vs.length; i++) {
+		vec3.scale(dv, this.base.dvs[i], s);
+		vec3.add(this.base.Vs[i], this.base.vs_0[i], dv);
+	}
+	this.triangulate();
+	this.paint();
+}
+
 global.draw_local_shape = draw_local_shape;
 global.draw_shape = draw_shape;
 global.draw_url_shape = draw_url_shape;
-global.OrbitShape = OrbitShape;;
-
-export {
-	draw_local_shape,
-	draw_shape,
-	OrbitShape
-};
+global.OrbitShape = OrbitShape;
+global.MorphShape = MorphShape;
 
 // vim: noexpandtab: sw=8
