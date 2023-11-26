@@ -55,6 +55,9 @@ One can test run this locally by starting the simple-webserver (you will need to
 have Python installed). Then start a browser and open the following address:
 http://0.0.0.0:8000/index.html
 
+If you want to build a version that is easier to debug, then set minimize to
+false in webpack.config.js and rebuild.
+
 INTERFACE
 ---------
 
