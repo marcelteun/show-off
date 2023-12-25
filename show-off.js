@@ -1275,6 +1275,17 @@ function OrbitShape(descriptive, transforms, canvas_id, cam_dist, opt) {
 		this.gl.my.obj_mats[i] =to_mat4(transforms[i])
 		this.cols[i] = new Array(this.base.Fs.length);
 		var col = transforms[i].col.slice();
+		for (var j = 0; j < 3; j++) {
+			/* Note below would mean colour 1 1 1 will be interpreted
+			 * as white (not as almost black using integer channels
+			 */
+			var chn = col[j];
+			if (chn >= 1) {
+				col[j] = chn / 255;
+			} else {
+				col[j] = chn;
+			}
+		}
 		// add alpha channel = 1
 		col.push(1);
 		for (var j = 0; j < this.base.Fs.length; j++) {
