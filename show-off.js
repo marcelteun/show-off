@@ -300,6 +300,7 @@ function BaseShape(canvas_id, cam_dist, opt) {
 	this.q_drag_rot = quat.create();
 	/* current rotation after latest mouse_up: */
 	this.q_cur_rot = quat.create();
+	this.scale_reset = 1.0;
 	this.gl_init(cam_dist, opt);
 	this.gl.my.shader_prog = this.get_shader_prog();
 }
@@ -566,7 +567,7 @@ BaseShape.prototype.gl_reset_view = function(cam_dist) {
 	mat4.identity(gl.my.pos_mat);
 	mat4.translate(
 		gl.my.pos_mat, gl.my.pos_mat, [0.0, 0.0, -gl.my.cam_dist]);
-	gl.my.scale_f = 1.0;
+	gl.my.scale_f = this.scale_reset;
 }
 
 var KC_5 = 53;
@@ -608,7 +609,7 @@ BaseShape.prototype.on_key_down = function(evt) {
 		switch (evt.keyCode) {
 		case KC_5:
 			console.log('Undo all zoom');
-			gl.my.scale_f = 1.0;
+			gl.my.scale_f = this.scale_reset;
 			this.paint();
 			break;
 		}
@@ -959,19 +960,26 @@ BaseShape.prototype.calc_min_depth = function() {
 		mat4.multiply(obj_mat, gl.my.pos_mat, obj_mat);
 		mat4.multiply(obj_mat, gl.my.proj_mat, obj_mat);
 
+		// Perhaps it isn't good to take into account pos_mat, since
+		// vertex positions will influence the shading. Perhaps it is
+		// better to use [0, 0, max_radius] and [0, 0, -max_radius]
+		// And proj_mat.
+		// This will also mean that you only have to calculate this
+		// once.
 		mat4.mul(obj_mat, gl.my.proj_mat, gl.my.pos_mat);
 		for (var ii = 0; ii < this.base.Vs.length; ii++) {
-			var v3 = this.base.Vs[ii];
-			var v4 = vec4.fromValues(v3[0], v3[1], v3[2], 1.0);
-			vec4.transformMat4(v4, v4, obj_mat);
-			var z_c = v4[2]/v4[3]
-			if (z_c < z_min) {
-				z_min = z_c;
+			// only take into accound vertices that are used
+			if (this.vertex_used[ii]) {
+				var v3 = this.base.Vs[ii];
+				var v4 = vec4.fromValues(v3[0], v3[1], v3[2], 1.0);
+				vec4.transformMat4(v4, v4, obj_mat);
+				var z_c = v4[2]/v4[3];
+				z_min = Math.min(z_min, z_c);
 			}
 		}
 	}
 	/* TODO: make config min_factor, which should be in [0; 1]? */
-	var min_factor = 0.01;
+	var min_factor = 0.10;
 	/*
 	 *            |
 	 *          1 +----- .
@@ -1130,6 +1138,8 @@ Shape.prototype.get_off_shape = function(data) {
 	var state = states.checkOff;
 	var lines = data.split('\n');
 	var error = false
+	// only vertices that are used coontribute to max radius
+	var vertex_used;
 	for (var i = 0; i < lines.length; i++) {
 		if (!lines[i].match(/\s*(#)/) && lines[i] != "") {
 			var words = lines[i].match(/\s*(\S+)/g)
@@ -1155,6 +1165,7 @@ Shape.prototype.get_off_shape = function(data) {
 				 * here one transfor, ie. one set of colours
 				 */
 				this.cols = [new Array(nrOfFs)];
+				vertex_used = new Array(nrOfVs);
 				console.log('reading', nrOfVs,
 					'Vs', nrOfFs, 'Fs (', nrOfEs, 'edges)');
 				state = states.readVs;
@@ -1166,6 +1177,7 @@ Shape.prototype.get_off_shape = function(data) {
 						parseFloat(words[0]),
 						parseFloat(words[1]),
 						parseFloat(words[2])];
+					vertex_used[nrRead] = false;
 					nrRead += 1;
 					if (nrRead >= this.base.Vs.length) {
 						state = states.readFs;
@@ -1182,7 +1194,9 @@ Shape.prototype.get_off_shape = function(data) {
 				if (!error) {
 					var face = new Array(n);
 					for (var j = 0; j < n; j++) {
-						face[j] = parseInt(words[j+1]);
+						var v_no = parseInt(words[j+1]);
+						face[j] = v_no;
+						vertex_used[v_no] = true;
 					}
 					if (n >= 3) {
 						this.base.Fs[nrRead] = face;
@@ -1224,6 +1238,20 @@ Shape.prototype.get_off_shape = function(data) {
 			}
 		}
 	}
+
+	// Get the maximum radius of this shape
+	var max_len_sq = 0;
+	for (var i = 0; i < vertex_used.length; i++) {
+		if (vertex_used[i]) {
+			max_len_sq = Math.max(vec3.squaredLength(this.base.Vs[i]), max_len_sq);
+		}
+	}
+	this.vertex_used = vertex_used;
+	this.max_radius = Math.sqrt(max_len_sq);
+	this.scale_reset = this.gl.my.cam_dist / this.max_radius;
+	// FIXME: somehow I am off with a factor 6. Where does that come from?
+	this.scale_reset /= 6;
+	this.gl_reset_view();
 	this.base.mat = mat4.create();
 	if (state != states.readOk) {
 		throw 'Error reading OFF file';
