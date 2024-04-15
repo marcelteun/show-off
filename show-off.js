@@ -302,7 +302,6 @@ function BaseShape(canvas_id, cam_dist, opt) {
 	this.q_drag_rot = quat.create();
 	/* current rotation after latest mouse_up: */
 	this.q_cur_rot = quat.create();
-	this.scale_reset = 1.0;
 	this.gl_init(cam_dist, opt);
 	this.gl.my.shader_prog = this.get_shader_prog();
 }
@@ -396,7 +395,6 @@ BaseShape.prototype.zoom = function(zoom_new, pull_up) {
 	/* don't continue at scaling 0 or even negative scaling */
 	if (dz > 0) {
 		this.gl.my.scale_f = dz * this.org_scale;
-		console.log('new zoom factor =', this.gl.my.scale_f);
 	}
 }
 
@@ -455,7 +453,6 @@ BaseShape.prototype.on_wheel = function(evt) {
 	var F = 500.0; /* some constant that worked for my mouse */
 	var dz = (F - evt.deltaY) / F;
 	this.gl.my.scale_f = dz * this.gl.my.scale_f;
-	console.log('new zoom factor =', this.gl.my.scale_f);
 	this.paint();
 }
 
@@ -571,8 +568,7 @@ BaseShape.prototype.gl_reset_view = function(cam_dist) {
 	mat4.identity(gl.my.pos_mat);
 	mat4.translate(
 		gl.my.pos_mat, gl.my.pos_mat, [0.0, 0.0, -gl.my.cam_dist]);
-	gl.my.scale_f = this.scale_reset;
-	console.log('scale reset to =', gl.my.scale_f);
+	gl.my.scale_f = 1.0;
 }
 
 var KC_5 = 53;
@@ -614,7 +610,7 @@ BaseShape.prototype.on_key_down = function(evt) {
 		switch (evt.keyCode) {
 		case KC_5:
 			console.log('Undo all zoom');
-			gl.my.scale_f = this.scale_reset;
+			gl.my.scale_f = 1.0;
 			this.paint();
 			break;
 		}
@@ -987,14 +983,6 @@ BaseShape.prototype.calc_pos_mat = function() {
 	}
 }
 
-BaseShape.prototype.calc_min_depth = function() {
-	var gl = this.gl;
-	var z_min = 1;
-	var z_max = 0;
-
-	this.calc_pos_mat();
-}
-
 BaseShape.prototype.draw = function() {
 	var gl = this.gl;
 
@@ -1108,7 +1096,7 @@ BaseShape.prototype.first_paint = function() {
 }
 
 BaseShape.prototype.on_paint = function() {
-	this.calc_min_depth();
+	this.calc_pos_mat();
 	this.draw();
 }
 
