@@ -216,6 +216,7 @@ var vert_shader = `
 	uniform float scale_f;
 	uniform float fade_factor;
 	uniform float fade_offset;
+	uniform float fade_min;
 
 	void main(void) {
 		vec3 v;
@@ -234,6 +235,7 @@ var vert_shader = `
 		v_light_weight += lgt_dir_2_col * w_lgt_dir;
 		float light_scale = fade_factor * gl_Position.z/gl_Position.w + fade_offset;
 		light_scale = min(1.0, light_scale);
+		light_scale = max(fade_min, light_scale);
 		v_light_weight *= light_scale;
 	}
 `;
@@ -697,6 +699,7 @@ BaseShape.prototype.gl_init = function(cam_dist, opt) {
 	gl.my.cam_dist = 5.4;
 	gl.my.fade_factor = 0.0;
 	gl.my.fade_offset = 1.0;
+	gl.my.fade_min = 0.0;
 	this.gl_reset_view();
 
 	var r = ARC_SCALE * Math.min(gl.my.viewport_width, gl.my.viewport_height) / 2;
@@ -719,6 +722,41 @@ BaseShape.prototype.gl_init = function(cam_dist, opt) {
 	}
 	gl.clearStencil(0);
 	gl.stencilMask(1);
+
+	mat4.perspective(gl.my.proj_mat,
+		45.0*DEG2RAD, gl.my.viewport_width / gl.my.viewport_height, 0.1, 4*gl.my.cam_dist);
+
+	/* TODO: make these three configurable (after FIXME below is done) */
+	var min_factor = 0.01;
+	var fading_start = 0.965
+	var fading_end = 1.0
+	/*
+	 * We want to starting fading out the light linearly from a certain
+	 * point (after scaling the scene into a unit "cube". Fading out depends
+	 * on the distance from the camera (z)
+	 * The graphs looks as folows
+	 *            |
+	 *          1 +----- .
+	 *            |       \
+	 *            |        \
+	 *            |         \
+	 *            |          \
+	 * min_factor +           .-----
+	 *            |
+	 *            +------+----+----+-
+	 *           O      f_0  f_1  1.0
+	 *
+	 * z_f is where the fading starts.
+	 * f_1 is where the fading ends.
+	 * This slope is identified by y = fade_factor * x + fade_offset
+	 *
+	 * Changing fading_end doesn't seem to have a big impact. It seems it is
+	 * hard to increase the fading, even when fading completely from 0.965
+	 * to 0.966.  FIXME probably need to debug the inside of the shader
+	 */
+	gl.my.fade_factor = (min_factor - 1) / (fading_end - fading_start);
+	gl.my.fade_offset = 0.1 - gl.my.fade_factor;
+	gl.my.fade_min = min_factor
 }
 
 BaseShape.prototype.compile_shader = function(shader, prog) {
@@ -775,6 +813,7 @@ BaseShape.prototype.get_shader_prog = function() {
 	shader_prog.norm_mat = gl.getUniformLocation(shader_prog, "norm_mat");
 	shader_prog.fade_factor = gl.getUniformLocation(shader_prog, "fade_factor");
 	shader_prog.fade_offset = gl.getUniformLocation(shader_prog, "fade_offset");
+	shader_prog.fade_min = gl.getUniformLocation(shader_prog, "fade_min");
 
 	shader_prog.lgt_ambient_col = gl.getUniformLocation(shader_prog,
 							"lgt_ambient_col");
@@ -953,58 +992,7 @@ BaseShape.prototype.calc_min_depth = function() {
 	var z_min = 1;
 	var z_max = 0;
 
-	/* TODO: get max R value and add to cam_dist (+ some margin) */
-	mat4.perspective(gl.my.proj_mat,
-		45.0*DEG2RAD, gl.my.viewport_width / gl.my.viewport_height, 0.1, 4*gl.my.cam_dist);
 	this.calc_pos_mat();
-
-	for (var k = 0; k < gl.my.obj_mats.length; k++) {
-		var obj_mat = mat4.create();
-		mat4.multiply(obj_mat, gl.my.obj_mats[k], this.base.mat);
-		mat4.multiply(obj_mat, gl.my.pos_mat, obj_mat);
-		mat4.multiply(obj_mat, gl.my.proj_mat, obj_mat);
-
-		// Perhaps it isn't good to take into account pos_mat, since
-		// vertex positions will influence the shading. Perhaps it is
-		// better to use [0, 0, max_radius] and [0, 0, -max_radius]
-		// And proj_mat.
-		// This will also mean that you only have to calculate this
-		// once.
-		mat4.mul(obj_mat, gl.my.proj_mat, gl.my.pos_mat);
-		for (var ii = 0; ii < this.base.Vs.length; ii++) {
-			// only take into accound vertices that are used
-			if (this.base.vertex_used[ii]) {
-				var v3 = this.base.Vs[ii];
-				var v4 = vec4.fromValues(v3[0], v3[1], v3[2], 1.0);
-				vec4.transformMat4(v4, v4, obj_mat);
-				var z_c = v4[2]/v4[3];
-				z_min = Math.min(z_min, z_c);
-				z_max = Math.max(z_max, z_c);
-			}
-		}
-	}
-	/* TODO: make config min_factor, which should be in [0; 1]? */
-	var min_factor = 0.10;
-	/*
-	 *            |
-	 *          1 +----- .
-	 *            |       \
-	 *            |        \
-	 *            |         \
-	 *            |          \
-	 * min_factor +           .
-	 *            |
-	 *            +------+----+----
-	 *           O   z_min    1.0
-	 */
-	console.log('z_min:', z_min);
-	console.log('z_max:', z_max);
-	gl.my.fade_factor = (min_factor - 1.0) / (1.0 - z_min);
-	//gl.my.fade_factor = (min_factor - z_max) / (1.0 - z_min);
-	// Where the slope meets the y-axis:
-	gl.my.fade_offset = min_factor - gl.my.fade_factor;
-	//gl.my.fade_offset = min_factor * z_max - gl.my.fade_factor;
-	console.log('fading:', gl.my.fade_factor, gl.my.fade_offset);
 }
 
 BaseShape.prototype.draw = function() {
@@ -1016,6 +1004,7 @@ BaseShape.prototype.draw = function() {
 
 	gl.uniform1f(gl.my.shader_prog.fade_factor, gl.my.fade_factor);
 	gl.uniform1f(gl.my.shader_prog.fade_offset, gl.my.fade_offset);
+	gl.uniform1f(gl.my.shader_prog.fade_min, gl.my.fade_min);
 
 	gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.vs);
 	gl.vertexAttribPointer(gl.my.shader_prog.v_pos_attr,
@@ -1121,6 +1110,45 @@ BaseShape.prototype.first_paint = function() {
 BaseShape.prototype.on_paint = function() {
 	this.calc_min_depth();
 	this.draw();
+}
+
+BaseShape.prototype.check_vertex_used = function() {
+	/* Go through this.base.Vs and this.base.Fs and set
+	 * this.base.vertex_used that expresses whether vertices are used.
+	 */
+	this.base.vertex_used = new Array(this.base.Vs.length);
+	for (var f_i = 0; f_i < this.base.Fs.length; f_i++) {
+		var face = this.base.Fs[f_i];
+		for (var v_i = 0; v_i < face.length; v_i++) {
+			this.base.vertex_used[face[v_i]] = true;
+		}
+	}
+}
+
+BaseShape.prototype.rescale = function() {
+	/*
+	 * Normalise the shpae to fit a unit sphere. It seems that this is the
+	 * easiest way to get a good light fading and to fit the model into the
+	 * cameras FoV.
+	 */
+	if (!this.base.vertex_use) {
+		this.check_vertex_used()
+	}
+
+	// Get the maximum radius of this shape
+	var max_len_sq = 0;
+	for (var i = 0; i < this.base.vertex_used.length; i++) {
+		if (this.base.vertex_used[i]) {
+			max_len_sq = Math.max(vec3.squaredLength(this.base.Vs[i]), max_len_sq);
+		}
+	}
+
+	var factor = 1 / Math.sqrt(max_len_sq);
+	for (var i = 0; i < this.base.vertex_used.length; i++) {
+		if (this.base.vertex_used[i]) {
+			vec3.scale(this.base.Vs[i], this.base.Vs[i], factor);
+		}
+	}
 }
 
 /*
@@ -1260,29 +1288,6 @@ Shape.prototype.get_off_shape = function(data) {
 	this.base.Fs = this.base.Fs.slice(0, nrRealFaces);
 }
 
-Shape.prototype.rescale = function() {
-	/*
-	 * Normalise all vertices that are use in a face. It seems that this is
-	 * the easiest way to get a good light light fading and to fit the model
-	 * into the scene.
-	 */
-
-	// Get the maximum radius of this shape
-	var max_len_sq = 0;
-	for (var i = 0; i < this.base.vertex_used.length; i++) {
-		if (this.base.vertex_used[i]) {
-			max_len_sq = Math.max(vec3.squaredLength(this.base.Vs[i]), max_len_sq);
-		}
-	}
-
-	var factor = 1 / Math.sqrt(max_len_sq);
-	for (var i = 0; i < this.base.vertex_used.length; i++) {
-		if (this.base.vertex_used[i]) {
-			vec3.scale(this.base.Vs[i], this.base.Vs[i], factor);
-		}
-	}
-}
-
 function to_mat4(m) {
 	return mat4.fromValues(
 		m[0][0], m[0][1], m[0][2], m[0][3],
@@ -1320,6 +1325,7 @@ function OrbitShape(descriptive, transforms, canvas_id, cam_dist, opt) {
 	this.base.Vs = descriptive.Vs;
 	this.base.Fs = descriptive.Fs;
 	this.base.mat = to_mat4(descriptive.transform);
+	this.rescale()
 
 	this.gl.my.obj_mats = new Array(transforms.length);
 	this.cols = new Array(transforms.length);
