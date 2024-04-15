@@ -394,6 +394,7 @@ BaseShape.prototype.zoom = function(zoom_new, pull_up) {
 	/* don't continue at scaling 0 or even negative scaling */
 	if (dz > 0) {
 		this.gl.my.scale_f = dz * this.org_scale;
+		console.log('new zoom factor =', this.gl.my.scale_f);
 	}
 }
 
@@ -452,6 +453,7 @@ BaseShape.prototype.on_wheel = function(evt) {
 	var F = 500.0; /* some constant that worked for my mouse */
 	var dz = (F - evt.deltaY) / F;
 	this.gl.my.scale_f = dz * this.gl.my.scale_f;
+	console.log('new zoom factor =', this.gl.my.scale_f);
 	this.paint();
 }
 
@@ -568,6 +570,7 @@ BaseShape.prototype.gl_reset_view = function(cam_dist) {
 	mat4.translate(
 		gl.my.pos_mat, gl.my.pos_mat, [0.0, 0.0, -gl.my.cam_dist]);
 	gl.my.scale_f = this.scale_reset;
+	console.log('scale reset to =', gl.my.scale_f);
 }
 
 var KC_5 = 53;
@@ -691,7 +694,7 @@ BaseShape.prototype.gl_init = function(cam_dist, opt) {
 	 */
 	gl.my.proj_mat = mat4.create();
 	gl.my.pos_mat = mat4.create();
-	gl.my.cam_dist = cam_dist;
+	gl.my.cam_dist = 5.4;
 	gl.my.fade_factor = 0.0;
 	gl.my.fade_offset = 1.0;
 	this.gl_reset_view();
@@ -948,6 +951,7 @@ BaseShape.prototype.calc_pos_mat = function() {
 BaseShape.prototype.calc_min_depth = function() {
 	var gl = this.gl;
 	var z_min = 1;
+	var z_max = 0;
 
 	/* TODO: get max R value and add to cam_dist (+ some margin) */
 	mat4.perspective(gl.my.proj_mat,
@@ -969,12 +973,13 @@ BaseShape.prototype.calc_min_depth = function() {
 		mat4.mul(obj_mat, gl.my.proj_mat, gl.my.pos_mat);
 		for (var ii = 0; ii < this.base.Vs.length; ii++) {
 			// only take into accound vertices that are used
-			if (this.vertex_used[ii]) {
+			if (this.base.vertex_used[ii]) {
 				var v3 = this.base.Vs[ii];
 				var v4 = vec4.fromValues(v3[0], v3[1], v3[2], 1.0);
 				vec4.transformMat4(v4, v4, obj_mat);
 				var z_c = v4[2]/v4[3];
 				z_min = Math.min(z_min, z_c);
+				z_max = Math.max(z_max, z_c);
 			}
 		}
 	}
@@ -992,8 +997,14 @@ BaseShape.prototype.calc_min_depth = function() {
 	 *            +------+----+----
 	 *           O   z_min    1.0
 	 */
+	console.log('z_min:', z_min);
+	console.log('z_max:', z_max);
 	gl.my.fade_factor = (min_factor - 1.0) / (1.0 - z_min);
+	//gl.my.fade_factor = (min_factor - z_max) / (1.0 - z_min);
+	// Where the slope meets the y-axis:
 	gl.my.fade_offset = min_factor - gl.my.fade_factor;
+	//gl.my.fade_offset = min_factor * z_max - gl.my.fade_factor;
+	console.log('fading:', gl.my.fade_factor, gl.my.fade_offset);
 }
 
 BaseShape.prototype.draw = function() {
@@ -1239,24 +1250,37 @@ Shape.prototype.get_off_shape = function(data) {
 		}
 	}
 
-	// Get the maximum radius of this shape
-	var max_len_sq = 0;
-	for (var i = 0; i < vertex_used.length; i++) {
-		if (vertex_used[i]) {
-			max_len_sq = Math.max(vec3.squaredLength(this.base.Vs[i]), max_len_sq);
-		}
-	}
-	this.vertex_used = vertex_used;
-	this.max_radius = Math.sqrt(max_len_sq);
-	this.scale_reset = this.gl.my.cam_dist / this.max_radius;
-	// FIXME: somehow I am off with a factor 6. Where does that come from?
-	this.scale_reset /= 6;
-	this.gl_reset_view();
+	this.base.vertex_used = vertex_used;
+	this.rescale()
+
 	this.base.mat = mat4.create();
 	if (state != states.readOk) {
 		throw 'Error reading OFF file';
 	}
 	this.base.Fs = this.base.Fs.slice(0, nrRealFaces);
+}
+
+Shape.prototype.rescale = function() {
+	/*
+	 * Normalise all vertices that are use in a face. It seems that this is
+	 * the easiest way to get a good light light fading and to fit the model
+	 * into the scene.
+	 */
+
+	// Get the maximum radius of this shape
+	var max_len_sq = 0;
+	for (var i = 0; i < this.base.vertex_used.length; i++) {
+		if (this.base.vertex_used[i]) {
+			max_len_sq = Math.max(vec3.squaredLength(this.base.Vs[i]), max_len_sq);
+		}
+	}
+
+	var factor = 1 / Math.sqrt(max_len_sq);
+	for (var i = 0; i < this.base.vertex_used.length; i++) {
+		if (this.base.vertex_used[i]) {
+			vec3.scale(this.base.Vs[i], this.base.Vs[i], factor);
+		}
+	}
 }
 
 function to_mat4(m) {
