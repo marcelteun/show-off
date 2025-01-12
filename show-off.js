@@ -32,10 +32,7 @@ export {
 var DEG2RAD = Math.PI/360;
 var ARC_SCALE = 0.8; /* limit to switch rotation type for mouse */
 
-function draw_url_shape(off_url,
-		canvas_id,
-		cam_dist,
-		opt) {
+function draw_url_shape(off_url, canvas_id, opt) {
 	/* Retrieve the specified off-file, interpret the file and draw it on
 	 * the canvas with the name 'canvas_id'.
 	 *
@@ -50,10 +47,7 @@ function draw_url_shape(off_url,
 	fetch(off_url).then(function(response) {
 		if(response.ok) {
 			response.text().then(function(data) {
-				result.shape = new Shape(data,
-					canvas_id,
-					cam_dist,
-					_opt);
+				result.shape = new Shape(data, canvas_id, _opt);
 			});
 		}
 	})
@@ -64,16 +58,12 @@ function draw_url_shape(off_url,
 	return result;
 }
 
-function draw_shape(off_file,
-		canvas_id,
-		cam_dist,
-		opt) {
+function draw_shape(off_file, canvas_id, opt) {
 	/* Retrieve the specified off-file, interpret the file and draw it on
 	 * the canvas with the name 'canvas_id'.
 	 *
 	 * off_file: relative path of the off file.
 	 * canvas_id: the name of the canvas to draw on
-	 * cam_dist: the distance of the camera
 	 * opt: optional parameters in a dictionary. This can be:
 	 *      has_concave_faces: boolean that specifies whether the model
 	 *                         contains concave faces. Default false.
@@ -104,7 +94,7 @@ function draw_shape(off_file,
 	off_url += "/";
 	off_url += off_file;
 	if (prot == "http:" || prot == "https:") {
-		result = draw_url_shape(off_url, canvas_id, cam_dist, _opt);
+		result = draw_url_shape(off_url, canvas_id, _opt);
 	} else if (prot == "file:") {
 		/*
 		 * File protocol is supported for testing purposes
@@ -118,7 +108,6 @@ function draw_shape(off_file,
 				if(req.status === 200 || req.status == 0) {
 					result.shape = new Shape(req.responseText,
 							canvas_id,
-							cam_dist,
 							_opt);
 				} else {
 					console.log("HTML status", req.status);
@@ -132,13 +121,12 @@ function draw_shape(off_file,
 	return result;
 }
 
-function draw_local_shape(off_file, canvas_id, cam_dist, opt) {
+function draw_local_shape(off_file, canvas_id, opt) {
 	/* Interpret the local OFF file and draw it on the canvas with the name
 	 * 'canvas_id'.
 	 *
 	 * off_file: local off_file path
 	 * canvas_id: the name of the canvas to draw on
-	 * cam_dist: the distance of the camera
 	 * opt: optional parameters in a dictionary. This can be:
 	 *      has_concave_faces: boolean that specifies whether the model
 	 *                         contains concave faces. Default false.
@@ -156,10 +144,7 @@ function draw_local_shape(off_file, canvas_id, cam_dist, opt) {
 	var result = {};
 	reader.onload = function(evt) {
 		var data = evt.target.result;
-		result.shape = new Shape(data,
-			canvas_id,
-			cam_dist,
-			_opt
+		result.shape = new Shape(data, canvas_id, _opt
 		);
 	};
 	reader.readAsText(off_file);
@@ -274,13 +259,12 @@ function create_gl_context(canvas) {
 	return ctx;
 }
 
-function BaseShape(canvas_id, cam_dist, opt) {
+function BaseShape(canvas_id, opt) {
 	/* Interpret the specified off-data, and draw it on the canvas with the
 	 * name 'canvas_id'.
 	 *
 	 * off_data: string in .off format that specifies the shape
 	 * canvas_id: the name of the canvas to draw on
-	 * cam_dist: the distance of the camera
 	 * opt: optional parameters in a dictionary. This can be:
 	 *      has_concave_faces: boolean that specifies whether the model
 	 *                         contains concave faces. Default false.
@@ -302,7 +286,7 @@ function BaseShape(canvas_id, cam_dist, opt) {
 	this.q_drag_rot = quat.create();
 	/* current rotation after latest mouse_up: */
 	this.q_cur_rot = quat.create();
-	this.gl_init(cam_dist, opt);
+	this.gl_init(opt);
 	this.gl.my.shader_prog = this.get_shader_prog();
 }
 
@@ -562,7 +546,7 @@ BaseShape.prototype.on_touch_end = function(evt) {
 	this.paint();
 }
 
-BaseShape.prototype.gl_reset_view = function(cam_dist) {
+BaseShape.prototype.gl_reset_view = function() {
 	var gl = this.gl;
 	quat.identity(this.q_cur_rot);
 	mat4.identity(gl.my.pos_mat);
@@ -634,7 +618,7 @@ BaseShape.prototype.on_key_down = function(evt) {
 BaseShape.prototype.on_key_up = function(evt) {
 }
 
-BaseShape.prototype.input_init = function(cam_dist) {
+BaseShape.prototype.input_init = function() {
 	this.reset_mouse();
 	var this_ = this
 	this.canvas.onmousedown = function(evt) {
@@ -673,9 +657,8 @@ BaseShape.prototype.update_bgcol = function(col) {
 	this.paint();
 }
 
-BaseShape.prototype.gl_init = function(cam_dist, opt) {
+BaseShape.prototype.gl_init = function(opt) {
 	/*
-	 * cam_dist: the distance of the camera
 	 * opt: optional parameters in a dictionary. This can be:
 	 *      has_concave_faces: boolean that specifies whether the model
 	 *                         contains concave faces. Default false.
@@ -1142,8 +1125,8 @@ BaseShape.prototype.rescale = function() {
 /*
  * Shape is used to show OFF files
  */
-function Shape(off_data, canvas_id, cam_dist, opt) {
-	BaseShape.call(this, canvas_id, cam_dist, opt);
+function Shape(off_data, canvas_id, opt) {
+	BaseShape.call(this, canvas_id, opt);
 
 	this.get_off_shape(off_data);
 	this.first_paint();
@@ -1287,7 +1270,7 @@ function to_mat4(m) {
 /*
  * OrbitShape is used to show base shape with copies by isometries
  */
-function OrbitShape(descriptive, transforms, canvas_id, cam_dist, opt) {
+function OrbitShape(descriptive, transforms, canvas_id, opt) {
 	/* Create a 3D shape based on isometry operations.
 	 *
 	 * descriptive: object with properties Vs, Fs and transform:
@@ -1307,7 +1290,7 @@ function OrbitShape(descriptive, transforms, canvas_id, cam_dist, opt) {
 	 *             RGB colour of the transformed shape.
 	 * For the other parameters, see draw_shape.
 	 */
-	BaseShape.call(this, canvas_id, cam_dist, opt);
+	BaseShape.call(this, canvas_id, opt);
 
 	this.base = new Object()
 	this.base.Vs = descriptive.Vs;
@@ -1355,7 +1338,7 @@ OrbitShape.prototype.rotate_descriptive = function(axis, rad) {
 /*
  * MorphShape is used to show base shape with copies by isometries
  */
-function MorphShape(descriptive, canvas_id, cam_dist, opt) {
+function MorphShape(descriptive, canvas_id, opt) {
 	/* Create a 3D shape for which vertices can morph linearly
 	 *
 	 * descriptive: object with properties Vs, Fs and transform:
@@ -1374,7 +1357,7 @@ function MorphShape(descriptive, canvas_id, cam_dist, opt) {
 	 *                                [0, 255]
 	 * For the other parameters, see draw_shape.
 	 */
-	BaseShape.call(this, canvas_id, cam_dist, opt);
+	BaseShape.call(this, canvas_id, opt);
 
 	this.base = new Object()
 	this.base.vs_0 = descriptive.vs_0;
@@ -1386,6 +1369,7 @@ function MorphShape(descriptive, canvas_id, cam_dist, opt) {
 		vec3.copy(this.base.Vs[i], descriptive.vs_0[i]);
 	}
 	this.base.Fs = descriptive.fs;
+	this.rescale()
 	this.base.mat = mat4.create();
 	this.cols = [new Array(descriptive.fs.length)];
 	this.gl.my.obj_mats = [mat4.create()];
@@ -1412,6 +1396,7 @@ MorphShape.prototype.morph_descriptive = function(s) {
 		vec3.scale(dv, this.base.dvs[i], s);
 		vec3.add(this.base.Vs[i], this.base.vs_0[i], dv);
 	}
+	this.rescale()
 	this.triangulate();
 	this.paint();
 }
