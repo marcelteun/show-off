@@ -23,6 +23,7 @@ const raf = require('raf');
 import {mat3, mat4, quat, vec2, vec3, vec4} from 'gl-matrix';
 
 export {
+	draw_url_shape,
 	draw_local_shape,
 	draw_shape,
 	OrbitShape,
@@ -32,22 +33,35 @@ export {
 var DEG2RAD = Math.PI/360;
 var ARC_SCALE = 0.8; /* limit to switch rotation type for mouse */
 
-function draw_url_shape(off_url, canvas_id, opt) {
+function draw_url_shape(off_url, canvas, opt, on_doc) {
 	/* Retrieve the specified off-file, interpret the file and draw it on
-	 * the canvas with the name 'canvas_id'.
+	 * the specified canvas element
 	 *
 	 * off_url: the complete url including the protocol.
-	 * See draw_shape for more info.
+	 * canvas: the canvas node object to draw on
+	 * opt: optional parameters in a dictionary. This can be:
+	 *      has_concave_faces: boolean that specifies whether the model
+	 *                         contains concave faces. Default false.
+	 *      bg_col: background colour to use. This is an array specifying
+	 *              the red, green, blue channels as values between 0 and
+	 *              1.  If nothing is specified, then black is used.
+	 *      The parameter itself is optional too.
+	 * on_doc: optional document object. If undefined then the current
+	 *  document is used. If the the canvas is on another document then this
+	 *  parameter is needed as well.
 	 */
 	var result = {};
 	var _opt = {};
 	if (opt !== undefined) {
 		_opt = opt;
 	}
+
 	fetch(off_url).then(function(response) {
 		if(response.ok) {
 			response.text().then(function(data) {
-				result.shape = new Shape(data, canvas_id, _opt);
+				result.shape = new Shape(
+					data, canvas, _opt, on_doc
+				);
 			});
 		}
 	})
@@ -58,12 +72,12 @@ function draw_url_shape(off_url, canvas_id, opt) {
 	return result;
 }
 
-function draw_shape(off_file, canvas_id, opt) {
+function draw_shape(off_file, canvas, opt, on_doc) {
 	/* Retrieve the specified off-file, interpret the file and draw it on
-	 * the canvas with the name 'canvas_id'.
+	 * the specified canvas element.
 	 *
 	 * off_file: relative path of the off file.
-	 * canvas_id: the name of the canvas to draw on
+	 * canvas: the canvas node object to draw on
 	 * opt: optional parameters in a dictionary. This can be:
 	 *      has_concave_faces: boolean that specifies whether the model
 	 *                         contains concave faces. Default false.
@@ -71,6 +85,9 @@ function draw_shape(off_file, canvas_id, opt) {
 	 *              the red, green, blue channels as values between 0 and
 	 *              1.  If nothing is specified, then black is used.
 	 *      The parameter itself is optional too.
+	 * on_doc: optional document object. If undefined then the current
+	 *  document is used. If the the canvas is on another document then this
+	 *  parameter is needed as well.
 	 */
 	var result = {};
 	var prot = window.location.protocol;
@@ -94,7 +111,7 @@ function draw_shape(off_file, canvas_id, opt) {
 	off_url += "/";
 	off_url += off_file;
 	if (prot == "http:" || prot == "https:") {
-		result = draw_url_shape(off_url, canvas_id, _opt);
+		result = draw_url_shape(off_url, canvas, _opt, on_doc);
 	} else if (prot == "file:") {
 		/*
 		 * File protocol is supported for testing purposes
@@ -106,9 +123,9 @@ function draw_shape(off_file, canvas_id, opt) {
 		req.onreadystatechange = function () {
 			if(req.readyState === 4) {
 				if(req.status === 200 || req.status == 0) {
-					result.shape = new Shape(req.responseText,
-							canvas_id,
-							_opt);
+					result.shape = new Shape(
+						req.responseText, canvas, _opt
+					);
 				} else {
 					console.log("HTML status", req.status);
 				}
@@ -121,12 +138,11 @@ function draw_shape(off_file, canvas_id, opt) {
 	return result;
 }
 
-function draw_local_shape(off_file, canvas_id, opt) {
-	/* Interpret the local OFF file and draw it on the canvas with the name
-	 * 'canvas_id'.
+function draw_local_shape(off_file, canvas, opt, on_doc) {
+	/* Interpret the local OFF file and draw it on the specified canvas element.
 	 *
 	 * off_file: local off_file path
-	 * canvas_id: the name of the canvas to draw on
+	 * canvas: the canvas node object
 	 * opt: optional parameters in a dictionary. This can be:
 	 *      has_concave_faces: boolean that specifies whether the model
 	 *                         contains concave faces. Default false.
@@ -134,6 +150,9 @@ function draw_local_shape(off_file, canvas_id, opt) {
 	 *              the red, green, blue channels as values between 0 andn
 	 *              1.  If nothing is specified, then black is used.
 	 *      The parameter itself is optional too.
+	 * on_doc: optional document object. If undefined then the current
+	 *  document is used. If the the canvas is on another document then this
+	 *  parameter is needed as well.
 	 */
 	// Note: will only work if user provided local file himself
 	var _opt = {};
@@ -144,8 +163,7 @@ function draw_local_shape(off_file, canvas_id, opt) {
 	var result = {};
 	reader.onload = function(evt) {
 		var data = evt.target.result;
-		result.shape = new Shape(data, canvas_id, _opt
-		);
+		result.shape = new Shape(data, canvas, _opt, on_doc);
 	};
 	reader.readAsText(off_file);
 }
@@ -259,12 +277,11 @@ function create_gl_context(canvas) {
 	return ctx;
 }
 
-function BaseShape(canvas_id, opt) {
-	/* Interpret the specified off-data, and draw it on the canvas with the
-	 * name 'canvas_id'.
+function BaseShape(canvas, opt, on_doc) {
+	/* Interpret the specified off-data, and draw it on a canvas.
 	 *
 	 * off_data: string in .off format that specifies the shape
-	 * canvas_id: the name of the canvas to draw on
+	 * canvas: the canvas node to draw on.
 	 * opt: optional parameters in a dictionary. This can be:
 	 *      has_concave_faces: boolean that specifies whether the model
 	 *                         contains concave faces. Default false.
@@ -272,9 +289,25 @@ function BaseShape(canvas_id, opt) {
 	 *              the red, green, blue channels as values between 0 andn
 	 *              1.  If nothing is specified, then black is used.
 	 *      The parameter itself isn't optional.
+	 * on_doc: optional document object. If undefined then the current
+	 *  document is used. If the the canvas is on another document then this
+	 *  parameter is needed as well.
 	 */
-	this.canvas = document.getElementById(canvas_id);
-	this.resize_canvas(this.canvas);
+	if (on_doc === undefined) {
+		this.doc = document;
+	} else {
+		this.doc = on_doc;
+	}
+	if (typeof canvas === 'string') {
+		var canvas_name = canvas;
+		canvas = this.doc.getElementById(canvas);
+	}
+	if (canvas === null) {
+		console.error("Canvas '" + canvas_name + "' not found! Bailing out")
+		return;
+	}
+	this.canvas = canvas
+	this.resize_canvas();
 	this.gl = create_gl_context(this.canvas);
 	/* To support OrbitShape, here just one transform */
 	this.gl.my.obj_mats = [mat4.create()];
@@ -290,7 +323,7 @@ function BaseShape(canvas_id, opt) {
 	this.gl.my.shader_prog = this.get_shader_prog();
 }
 
-BaseShape.prototype.resize_canvas = function(canvas) {
+BaseShape.prototype.resize_canvas = function() {
 	/*
 	 * Make the specified canvas size in line with the css Otherwise the
 	 * mouse/touch events don't end up at the complete bottom / right. Other
@@ -298,13 +331,13 @@ BaseShape.prototype.resize_canvas = function(canvas) {
 	 */
 
 	// look up the size the canvas is being displayed
-	const width = canvas.clientWidth;
-	const height = canvas.clientHeight;
+	const width = this.canvas.clientWidth;
+	const height = this.canvas.clientHeight;
 
 	// If it's resolution does not match change it
-	if (canvas.width !== width || canvas.height !== height) {
-		canvas.width = width;
-		canvas.height = height;
+	if (this.canvas.width !== width || this.canvas.height !== height) {
+		this.canvas.width = width;
+		this.canvas.height = height;
 	}
 }
 
@@ -625,13 +658,13 @@ BaseShape.prototype.input_init = function() {
 		this_.on_mouse_down(evt);
 	}
 	// Register move and release even outside the canvas
-	document.addEventListener('mouseup', function(evt) {
+	this.doc.addEventListener('mouseup', function(evt) {
 		this_.on_mouse_up(evt);
 	});
-	document.addEventListener('mousemove', function(evt) {
+	this.doc.addEventListener('mousemove', function(evt) {
 		this_.on_mouse_move(evt);
 	});
-	document.addEventListener('keydown', function(evt) {
+	this.doc.addEventListener('keydown', function(evt) {
 		this_.on_key_down(evt);
 	});
 	this.canvas.onkeyup = function(evt) {
@@ -1125,8 +1158,17 @@ BaseShape.prototype.rescale = function() {
 /*
  * Shape is used to show OFF files
  */
-function Shape(off_data, canvas_id, opt) {
-	BaseShape.call(this, canvas_id, opt);
+function Shape(off_data, canvas, opt, on_doc) {
+	/*
+	 * Draws a 3D shape on a canvas element with NodeJS
+	 * off_data: a string defining the 3D shape in the OFF file format.
+	 * canvas: the canvas node to draw on.
+	 * opt: a dictionary with options for the 3D shape
+	 * on_doc: optional document object. If undefined then the current
+	 *  document is used. If the the canvas is on another document then this
+	 *  parameter is needed as well.
+	 */
+	BaseShape.call(this, canvas, opt, on_doc);
 
 	this.get_off_shape(off_data);
 	this.first_paint();
@@ -1270,7 +1312,7 @@ function to_mat4(m) {
 /*
  * OrbitShape is used to show base shape with copies by isometries
  */
-function OrbitShape(descriptive, transforms, canvas_id, opt) {
+function OrbitShape(descriptive, transforms, canvas, opt, on_doc) {
 	/* Create a 3D shape based on isometry operations.
 	 *
 	 * descriptive: object with properties Vs, Fs and transform:
@@ -1290,7 +1332,7 @@ function OrbitShape(descriptive, transforms, canvas_id, opt) {
 	 *             RGB colour of the transformed shape.
 	 * For the other parameters, see draw_shape.
 	 */
-	BaseShape.call(this, canvas_id, opt);
+	BaseShape.call(this, canvas, opt, on_doc);
 
 	this.base = new Object()
 	this.base.Vs = descriptive.Vs;
@@ -1338,7 +1380,7 @@ OrbitShape.prototype.rotate_descriptive = function(axis, rad) {
 /*
  * MorphShape is used to show base shape with copies by isometries
  */
-function MorphShape(descriptive, canvas_id, opt) {
+function MorphShape(descriptive, canvas, opt, on_doc) {
 	/* Create a 3D shape for which vertices can morph linearly
 	 *
 	 * descriptive: object with properties Vs, Fs and transform:
@@ -1357,7 +1399,7 @@ function MorphShape(descriptive, canvas_id, opt) {
 	 *                                [0, 255]
 	 * For the other parameters, see draw_shape.
 	 */
-	BaseShape.call(this, canvas_id, opt);
+	BaseShape.call(this, canvas, opt, on_doc);
 
 	this.base = new Object()
 	this.base.vs_0 = descriptive.vs_0;

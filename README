@@ -46,6 +46,11 @@ To generate a version that can be debugged, run the following
 
 Then the bundle can be found in the dists directory.
 
+Sometimes olders version cannot be used because they aren't secure anymore,
+e.g. for SSL layer. In that case run
+# npm update
+first and the run the npx webpack again.
+
 HOW TO USE JS BUNDLE
 --------------------
 
