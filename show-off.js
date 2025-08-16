@@ -369,8 +369,6 @@ BaseShape.prototype.calc_rotation = function(x, y) {
 	var new_sphere_pos = this.xy_to_sphere_pos(x, y);
 	var result = quat.create();
 	quat.rotationTo(result, this.org_sphere_pos, new_sphere_pos);
-	var m = mat3.create()
-	mat3.fromQuat(m, result);
 	return result;
 }
 
