@@ -846,7 +846,7 @@ BaseShape.prototype.get_face_normal = function(n, f) {
 	var v1;
 	var ll1;
 	var i;
-	var min = 1e-10;
+	var min = 1e-5;
 	for (i = 1; i < f.length - 1; i++) {
 		v1 = this.base.Vs[f[i]];
 		vec3.subtract(d1, v1, v0);
@@ -862,13 +862,16 @@ BaseShape.prototype.get_face_normal = function(n, f) {
 		vec3.subtract(d2, v2, v0);
 		ll2 = vec3.sqrLen(d1);
 		if (ll2 > min) {
-			break;
+			vec3.cross(n, d1, d2);
+			ll2 = vec3.sqrLen(n);
+			if (ll2 > min) {
+				break;
+			}
 		}
 	}
 	if ((ll1 <= min) || (ll2 <= min)) {
 		console.log(' Warning problems calculating face normal', ll1, ll2);
 	}
-	vec3.cross(n, d1, d2);
 	vec3.normalize(n, n);
 	return n;
 }
