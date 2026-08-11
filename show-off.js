@@ -1195,9 +1195,10 @@ Shape.prototype.get_off_shape = function(data) {
 	var vertex_used;
 	var line;
 	for (var i = 0; i < lines.length; i++) {
-		line = lines[i].trim();
+		line = lines[i].replace(/#.*/, "");
+		line = line.trim();
 		if (!line.match(/\s*(#)/) && line.length != 0) {
-			var words = lines[i].match(/\s*(\S+)/g)
+			var words = line.match(/\s*(\S+)/g)
 			switch (state) {
 			case states.checkOff:
 				error = words[0] != 'OFF';
