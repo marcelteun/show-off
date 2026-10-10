@@ -34,9 +34,9 @@ function update_bg(e) {
 }
 function draw_shapes(e) {
 	models.push(
-		draw_shape('off/cube.off', 'mw03', 10, {bg_col: current_col}));
+		draw_shape('off/cube.off', 'mw03', {bg_col: current_col}));
 	models.push(
-		draw_shape('off/MW20.off', 'mw20', 10, {bg_col: current_col}));
+		draw_shape('off/MW20.off', 'mw20', {bg_col: current_col}));
 }
 function model_update_bg(mod, col) {
 	mod.shape.update_bgcol(current_col);

@@ -7,7 +7,7 @@
   <script src="/js/show-off-bundle.js"></script>
 </head>
 
-<body style="width:850px" onload="draw_url_shape('off/cube.off', 'doek', 5);">
+<body style="width:850px" onload="draw_url_shape('off/cube.off', 'doek', {});">
 <div>
   <p>
   Below you can check some prepared OFF-files that are located on the web
@@ -45,7 +45,7 @@
         var x = document.getElementById("mySelect").value;
         var pars = x.split(":");
         draw_url_shape(pars[0],
-                   'doek', pars[1], {has_concave_faces: pars[2] == "1"});
+                   'doek', {has_concave_faces: pars[2] == "1"});
       }
     </script>
   </div>
@@ -87,6 +87,10 @@
   separately.  This isn't very efficient, so there is a way to optimise this for
   objects that only have convex faces: The key 'c' is used to toggle support for
   concave and convex faces.
+  </p>
+  <p>
+  Press 'e' to toggle edges and vertices. Add <code>?edges=1</code> to this
+  page's URL to show them by default.
   </p>
   <h2>Navigation by Touch Screen</h2>
   <p>

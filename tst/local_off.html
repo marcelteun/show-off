@@ -8,7 +8,7 @@
 
 <body style="width:850px;">
 <div style="width:610px;">
-  <h1>Show a Local OFF file </h1>
+  <h1>Show an OFF file</h1>
   <input type="file" id="files" name="files[]" accept=".off" />
   <div style="float:left; width:600px">
     <canvas id="doek" style="border: none;" width="500" height="500"></canvas>
@@ -18,14 +18,19 @@
     function on_file(evt) {
       var files = evt.target.files;
       for (var i = 0, f; f = files[i]; i++) {
-        draw_local_shape(f, 'doek', 10, {has_concave_faces: true});
+        draw_local_shape(f, 'doek', {has_concave_faces: true});
       }
     }
     document.getElementById('files').addEventListener('change', on_file,
   false);
+    var off_file = new URLSearchParams(window.location.search).get('off_file');
+    if (off_file) {
+      draw_url_shape(off_file, 'doek', {has_concave_faces: true});
+    }
   </script>
   </div>
   <p>
+  Or load a hosted OFF file using <code>?off_file=off/MW20.off</code>.
   For help with navigation, see <a href="index.html">home</a>.
   </p>
 </div>

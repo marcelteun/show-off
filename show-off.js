@@ -32,6 +32,9 @@ export {
 
 var DEG2RAD = Math.PI/360;
 var ARC_SCALE = 0.8; /* limit to switch rotation type for mouse */
+var EDGE_RADIUS = 0.012; /* radius of displayed edge cylinders */
+var VERTEX_RADIUS = 0.028; /* radius of displayed vertex spheres */
+var MARKER_SEGMENTS = 8; /* radial and spherical subdivisions for markers */
 
 function draw_url_shape(off_url, canvas, opt, on_doc) {
 	/* Retrieve the specified off-file, interpret the file and draw it on
@@ -57,16 +60,15 @@ function draw_url_shape(off_url, canvas, opt, on_doc) {
 	}
 
 	fetch(off_url).then(function(response) {
-		if(response.ok) {
-			response.text().then(function(data) {
-				result.shape = new Shape(
-					data, canvas, _opt, on_doc
-				);
-			});
+		if (!response.ok) {
+			throw new Error("HTTP status " + response.status);
 		}
+		return response.text();
+	}).then(function(data) {
+		result.shape = new Shape(data, canvas, _opt, on_doc);
 	})
 	.catch(function(error) {
-		console.error("error fetching", off_file, error);
+		console.error("error fetching", off_url, error);
 	});
 
 	return result;
@@ -248,6 +250,111 @@ function is_float(n_str) {
 	return n_str.indexOf(".") > 0;
 }
 
+/*
+ * Append one marker vertex, normal, and neutral color to the shared buffers.
+ */
+function marker_vertex(data, position, normal) {
+	for (var i = 0; i < 3; i++) {
+		data.vertices.push(position[i]);
+		data.normals.push(normal[i]);
+	}
+	data.colors.push(0.8, 0.8, 0.8, 1);
+}
+
+/*
+ * Append a triangle with per-vertex normals to the shared marker buffers.
+ */
+function marker_triangle(data, points, normals) {
+	for (var i = 0; i < 3; i++) {
+		marker_vertex(data, points[i], normals[i]);
+	}
+}
+
+/*
+ * Add a cylinder between two model-space endpoints to the marker buffers.
+ */
+function add_cylinder(data, a, b) {
+	var axis = vec3.create();
+	vec3.subtract(axis, b, a);
+	if (vec3.squaredLength(axis) < 1e-12) {
+		return;
+	}
+	vec3.normalize(axis, axis);
+	var ref = Math.abs(axis[1]) < 0.9 ?
+		vec3.fromValues(0, 1, 0) : vec3.fromValues(1, 0, 0);
+	var u = vec3.create();
+	var v = vec3.create();
+	vec3.cross(u, axis, ref);
+	vec3.normalize(u, u);
+	vec3.cross(v, axis, u);
+	for (var i = 0; i < MARKER_SEGMENTS; i++) {
+		var angle0 = 2 * Math.PI * i / MARKER_SEGMENTS;
+		var angle1 = 2 * Math.PI * (i + 1) / MARKER_SEGMENTS;
+		var n0 = vec3.create();
+		var n1 = vec3.create();
+		vec3.scale(n0, u, Math.cos(angle0));
+		vec3.scaleAndAdd(n0, n0, v, Math.sin(angle0));
+		vec3.scale(n1, u, Math.cos(angle1));
+		vec3.scaleAndAdd(n1, n1, v, Math.sin(angle1));
+		var a0 = vec3.create();
+		var b0 = vec3.create();
+		var a1 = vec3.create();
+		var b1 = vec3.create();
+		vec3.scaleAndAdd(a0, a, n0, EDGE_RADIUS);
+		vec3.scaleAndAdd(b0, b, n0, EDGE_RADIUS);
+		vec3.scaleAndAdd(a1, a, n1, EDGE_RADIUS);
+		vec3.scaleAndAdd(b1, b, n1, EDGE_RADIUS);
+		marker_triangle(data, [a0, b0, b1], [n0, n0, n1]);
+		marker_triangle(data, [a0, b1, a1], [n0, n1, n1]);
+	}
+}
+
+/*
+ * Add a faceted sphere centered at a model-space vertex to the marker buffers.
+ */
+function add_sphere(data, center) {
+	var rings = MARKER_SEGMENTS;
+	var slices = MARKER_SEGMENTS;
+	for (var i = 0; i < rings; i++) {
+		var lat0 = Math.PI * (i / rings - 0.5);
+		var lat1 = Math.PI * ((i + 1) / rings - 0.5);
+		for (var j = 0; j < slices; j++) {
+			var lon0 = 2 * Math.PI * j / slices;
+			var lon1 = 2 * Math.PI * (j + 1) / slices;
+			var normals = [
+				vec3.fromValues(Math.cos(lat0) * Math.cos(lon0),
+					Math.sin(lat0), Math.cos(lat0) * Math.sin(lon0)),
+				vec3.fromValues(Math.cos(lat1) * Math.cos(lon0),
+					Math.sin(lat1), Math.cos(lat1) * Math.sin(lon0)),
+				vec3.fromValues(Math.cos(lat1) * Math.cos(lon1),
+					Math.sin(lat1), Math.cos(lat1) * Math.sin(lon1)),
+				vec3.fromValues(Math.cos(lat0) * Math.cos(lon1),
+					Math.sin(lat0), Math.cos(lat0) * Math.sin(lon1))
+			];
+			var points = normals.map(function(normal) {
+				var point = vec3.create();
+				vec3.scaleAndAdd(point, center, normal, VERTEX_RADIUS);
+				return point;
+			});
+			marker_triangle(data,
+				[points[0], points[1], points[2]],
+				[normals[0], normals[1], normals[2]]);
+			marker_triangle(data,
+				[points[0], points[2], points[3]],
+				[normals[0], normals[2], normals[3]]);
+		}
+	}
+}
+
+/*
+ * Return a rounded coordinate key for matching coincident model vertices.
+ */
+function point_key(point) {
+	return point.map(function(value) {
+		return Math.round(value * 100000);
+	}).join(',');
+}
+
 function create_gl_context(canvas) {
 	var ctx;
 	try {
@@ -307,6 +414,10 @@ function BaseShape(canvas, opt, on_doc) {
 		return;
 	}
 	this.canvas = canvas
+	this.destroyed = false;
+	if (this.canvas.__showOffShape) {
+		this.canvas.__showOffShape.destroy();
+	}
 	this.resize_canvas();
 	this.gl = create_gl_context(this.canvas);
 	/* To support OrbitShape, here just one transform */
@@ -342,7 +453,11 @@ BaseShape.prototype.resize_canvas = function() {
 }
 
 BaseShape.prototype.paint = function() {
-	raf(() => this.on_paint());
+	raf(() => {
+		if (!this.destroyed) {
+			this.on_paint();
+		}
+	});
 }
 
 BaseShape.prototype.xy_to_sphere_pos = function(x, y) {
@@ -589,7 +704,7 @@ BaseShape.prototype.gl_reset_view = function() {
 var KC_5 = 53;
 var KC_C = 67;
 var KC_F = 70; /* toggle show faces: (reserved, TODO) */
-var KC_E = 69; /* toggle show edges: (reserved, TODO) */
+var KC_E = 69;
 var KC_V = 86; /* toggle show vertices: (reserved, TODO) */
 
 BaseShape.prototype.on_key_down = function(evt) {
@@ -616,6 +731,13 @@ BaseShape.prototype.on_key_down = function(evt) {
 				console.log('Support for concave faces');
 				gl.my.use_stencil_buffer = true;
 				gl.enable(gl.STENCIL_TEST);
+			}
+			this.paint();
+			break;
+		case KC_E:
+			gl.my.show_edges = !gl.my.show_edges;
+			if (gl.my.show_edges && !gl.my.marker_vs) {
+				this.update_edge_buffers();
 			}
 			this.paint();
 			break;
@@ -651,35 +773,70 @@ BaseShape.prototype.on_key_up = function(evt) {
 
 BaseShape.prototype.input_init = function() {
 	this.reset_mouse();
-	var this_ = this
-	this.canvas.onmousedown = function(evt) {
-		this_.on_mouse_down(evt);
+	var this_ = this;
+	var handlers = {
+		mousedown: function(evt) { this_.on_mouse_down(evt); },
+		mouseup: function(evt) { this_.on_mouse_up(evt); },
+		mousemove: function(evt) { this_.on_mouse_move(evt); },
+		keydown: function(evt) { this_.on_key_down(evt); },
+		keyup: function(evt) { this_.on_key_up(evt); },
+		touchstart: function(evt) { this_.on_touch_start(evt); },
+		touchmove: function(evt) { this_.on_touch_move(evt); },
+		touchend: function(evt) { this_.on_touch_end(evt); },
+		wheel: function(evt) { this_.on_wheel(evt); }
+	};
+	this.input_handlers = handlers;
+	this.canvas.onmousedown = handlers.mousedown;
+	this.canvas.onkeyup = handlers.keyup;
+	this.doc.addEventListener('mouseup', handlers.mouseup);
+	this.doc.addEventListener('mousemove', handlers.mousemove);
+	this.doc.addEventListener('keydown', handlers.keydown);
+	this.canvas.addEventListener('touchstart', handlers.touchstart);
+	this.canvas.addEventListener('touchmove', handlers.touchmove);
+	this.canvas.addEventListener('touchend', handlers.touchend);
+	this.canvas.addEventListener('wheel', handlers.wheel);
+}
+
+/*
+ * Release this shape's input listeners and GPU buffers when its canvas is reused.
+ */
+BaseShape.prototype.destroy = function() {
+	var handlers = this.input_handlers;
+	if (handlers) {
+		if (this.canvas.onmousedown === handlers.mousedown) {
+			this.canvas.onmousedown = null;
+		}
+		if (this.canvas.onkeyup === handlers.keyup) {
+			this.canvas.onkeyup = null;
+		}
+		this.doc.removeEventListener('mouseup', handlers.mouseup);
+		this.doc.removeEventListener('mousemove', handlers.mousemove);
+		this.doc.removeEventListener('keydown', handlers.keydown);
+		this.canvas.removeEventListener('touchstart', handlers.touchstart);
+		this.canvas.removeEventListener('touchmove', handlers.touchmove);
+		this.canvas.removeEventListener('touchend', handlers.touchend);
+		this.canvas.removeEventListener('wheel', handlers.wheel);
+		this.input_handlers = undefined;
 	}
-	// Register move and release even outside the canvas
-	this.doc.addEventListener('mouseup', function(evt) {
-		this_.on_mouse_up(evt);
-	});
-	this.doc.addEventListener('mousemove', function(evt) {
-		this_.on_mouse_move(evt);
-	});
-	this.doc.addEventListener('keydown', function(evt) {
-		this_.on_key_down(evt);
-	});
-	this.canvas.onkeyup = function(evt) {
-		this_.on_key_up(evt);
+	if (!this.destroyed && this.canvas.__showOffShape === this && this.gl) {
+		var buffers = [
+			this.gl.my.vs, this.gl.my.v_cols, this.gl.my.ns, this.gl.my.fs,
+			this.gl.my.marker_vs, this.gl.my.marker_ns, this.gl.my.marker_cols
+		].concat(this.gl.my.ffs || []);
+		for (var i = 0; i < buffers.length; i++) {
+			if (buffers[i]) {
+				this.gl.deleteBuffer(buffers[i]);
+			}
+		}
+		if (this.gl.my.shader_prog) {
+			this.gl.deleteProgram(this.gl.my.shader_prog);
+		}
 	}
-	this.canvas.addEventListener('touchstart', function(evt) {
-		this_.on_touch_start(evt);
-	});
-	this.canvas.addEventListener('touchmove', function(evt) {
-		this_.on_touch_move(evt);
-	});
-	this.canvas.addEventListener('touchend', function(evt) {
-		this_.on_touch_end(evt);
-	});
-	this.canvas.addEventListener('wheel', function(evt) {
-		this_.on_wheel(evt);
-	});
+	this.destroyed = true;
+	this.input_handlers = undefined;
+	if (this.canvas.__showOffShape === this) {
+		delete this.canvas.__showOffShape;
+	}
 }
 
 BaseShape.prototype.update_bgcol = function(col) {
@@ -710,6 +867,7 @@ BaseShape.prototype.gl_init = function(opt) {
 	gl.my.fade_factor = 0.0;
 	gl.my.fade_offset = 1.0;
 	gl.my.fade_min = 0.0;
+	gl.my.show_edges = /(?:^|[?&])edges=1(?:&|$)/.test(window.location.search);
 	this.gl_reset_view();
 
 	var r = ARC_SCALE * Math.min(gl.my.viewport_width, gl.my.viewport_height) / 2;
@@ -988,6 +1146,73 @@ BaseShape.prototype.triangulate = function() {
 	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(fs), gl.STATIC_DRAW);
 	gl.my.fs.elem_len = 1;
 	gl.my.fs.no_of_elem = fs.length;
+	if (gl.my.show_edges || gl.my.marker_vs) {
+		this.update_edge_buffers();
+	}
+}
+
+/*
+ * Build and upload shared marker geometry for unique edges and vertices.
+ */
+BaseShape.prototype.update_edge_buffers = function() {
+	var gl = this.gl;
+	var data = {vertices: [], normals: [], colors: []};
+	var vertices = this.base.Vs;
+	var points = Object.create(null);
+	var edges = [];
+	var edge_keys = Object.create(null);
+
+	function add_edge(a, b) {
+		var key_a = point_key(a);
+		var key_b = point_key(b);
+		if (key_a === key_b) {
+			return;
+		}
+		var key = key_a < key_b ? key_a + ':' + key_b : key_b + ':' + key_a;
+		if (!edge_keys[key]) {
+			edge_keys[key] = true;
+			edges.push([a, b]);
+		}
+	}
+
+	for (var i = 0; i < vertices.length; i++) {
+		var key = point_key(vertices[i]);
+		if (!points[key]) {
+			points[key] = true;
+			add_sphere(data, vertices[i]);
+		}
+	}
+	if (this.base.Es) {
+		for (var j = 0; j < this.base.Es.length; j++) {
+			add_edge(vertices[this.base.Es[j][0]], vertices[this.base.Es[j][1]]);
+		}
+	}
+	for (var f = 0; f < this.base.Fs.length; f++) {
+		var face = this.base.Fs[f];
+		for (var k = 0; k < face.length; k++) {
+			add_edge(vertices[face[k]], vertices[face[(k + 1) % face.length]]);
+		}
+	}
+	for (var e = 0; e < edges.length; e++) {
+		add_cylinder(data, edges[e][0], edges[e][1]);
+	}
+
+	var buffers = [
+		['marker_vs', gl.ARRAY_BUFFER, data.vertices, 3],
+		['marker_ns', gl.ARRAY_BUFFER, data.normals, 3],
+		['marker_cols', gl.ARRAY_BUFFER, data.colors, 4]
+	];
+	for (var b = 0; b < buffers.length; b++) {
+		var buffer = gl.my[buffers[b][0]];
+		if (!buffer) {
+			buffer = gl.createBuffer();
+			gl.my[buffers[b][0]] = buffer;
+		}
+		gl.bindBuffer(buffers[b][1], buffer);
+		gl.bufferData(buffers[b][1], new Float32Array(buffers[b][2]), gl.STATIC_DRAW);
+		buffer.elem_len = buffers[b][3];
+	}
+	gl.my.marker_count = data.vertices.length / 3;
 }
 
 BaseShape.prototype.calc_pos_mat = function() {
@@ -1103,10 +1328,26 @@ BaseShape.prototype.draw = function() {
 			gl.drawElements(gl.TRIANGLES, gl.my.fs.no_of_elem,
 								gl.UNSIGNED_SHORT, 0);
 		}
+		if (gl.my.show_edges && gl.my.marker_count) {
+			if (gl.my.use_stencil_buffer) {
+				gl.disable(gl.STENCIL_TEST);
+			}
+			gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.marker_vs);
+			gl.vertexAttribPointer(gl.my.shader_prog.v_pos_attr, 3, gl.FLOAT, false, 0, 0);
+			gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.marker_ns);
+			gl.vertexAttribPointer(gl.my.shader_prog.norms_attr, 3, gl.FLOAT, false, 0, 0);
+			gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.marker_cols);
+			gl.vertexAttribPointer(gl.my.shader_prog.v_col_attr, 4, gl.FLOAT, false, 0, 0);
+			gl.drawArrays(gl.TRIANGLES, 0, gl.my.marker_count);
+			if (gl.my.use_stencil_buffer) {
+				gl.enable(gl.STENCIL_TEST);
+			}
+		}
 	}
 }
 
 BaseShape.prototype.first_paint = function() {
+	this.canvas.__showOffShape = this;
 	this.triangulate();
 	this.on_paint();
 	this.input_init();
@@ -1121,11 +1362,22 @@ BaseShape.prototype.check_vertex_used = function() {
 	/* Go through this.base.Vs and this.base.Fs and set
 	 * this.base.vertex_used that expresses whether vertices are used.
 	 */
-	this.base.vertex_used = new Array(this.base.Vs.length);
+	this.base.vertex_used = new Array(this.base.Vs.length).fill(false);
 	for (var f_i = 0; f_i < this.base.Fs.length; f_i++) {
 		var face = this.base.Fs[f_i];
 		for (var v_i = 0; v_i < face.length; v_i++) {
 			this.base.vertex_used[face[v_i]] = true;
+		}
+	}
+	if (this.base.Es) {
+		for (var e_i = 0; e_i < this.base.Es.length; e_i++) {
+			this.base.vertex_used[this.base.Es[e_i][0]] = true;
+			this.base.vertex_used[this.base.Es[e_i][1]] = true;
+		}
+	}
+	if (this.base.Ps) {
+		for (var p_i = 0; p_i < this.base.Ps.length; p_i++) {
+			this.base.vertex_used[this.base.Ps[p_i]] = true;
 		}
 	}
 }
@@ -1136,7 +1388,7 @@ BaseShape.prototype.rescale = function() {
 	 * easiest way to get a good light fading and to fit the model into the
 	 * cameras FoV.
 	 */
-	if (!this.base.vertex_use) {
+	if (!this.base.vertex_used) {
 		this.check_vertex_used()
 	}
 
@@ -1146,6 +1398,9 @@ BaseShape.prototype.rescale = function() {
 		if (this.base.vertex_used[i]) {
 			max_len_sq = Math.max(vec3.squaredLength(this.base.Vs[i]), max_len_sq);
 		}
+	}
+	if (max_len_sq === 0) {
+		return;
 	}
 
 	var factor = 1 / Math.sqrt(max_len_sq);
@@ -1216,6 +1471,7 @@ Shape.prototype.get_off_shape = function(data) {
 				this.base.Vs = new Array(nrOfVs);
 				this.base.Fs = new Array(nrOfFs);
 				this.base.Es = [];
+				this.base.Ps = [];
 				/*
 				 * array of array to support OrbitShape:
 				 * here one transfor, ie. one set of colours
@@ -1236,7 +1492,7 @@ Shape.prototype.get_off_shape = function(data) {
 					vertex_used[nrRead] = false;
 					nrRead += 1;
 					if (nrRead >= this.base.Vs.length) {
-						state = states.readFs;
+						state = this.base.Fs.length ? states.readFs : states.readOk;
 						nrRead = 0;
 					}
 				} else {
@@ -1276,6 +1532,11 @@ Shape.prototype.get_off_shape = function(data) {
 						nrRealFaces += 1;
 					} else if (n == 2) {
 						this.base.Es.push(face);
+						vertex_used[face[0]] = true;
+						vertex_used[face[1]] = true;
+					} else if (n == 1) {
+						this.base.Ps.push(face[0]);
+						vertex_used[face[0]] = true;
 					} // else ignore, but count
 					nrRead += 1;
 					if (nrRead >= this.base.Fs.length) {
@@ -1286,6 +1547,25 @@ Shape.prototype.get_off_shape = function(data) {
 				} else {
 					console.error('error reading face', nrRead);
 					console.log(words.length, '!=', n+1, 'or', n+4);
+				}
+				break;
+			case states.readOk:
+				var extra_n = parseInt(words[0]);
+				if ((extra_n == 1 || extra_n == 2) &&
+					(words.length == extra_n + 1 ||
+					 words.length == extra_n + 4)) {
+					var extra = [];
+					for (var e_i = 0; e_i < extra_n; e_i++) {
+						extra.push(parseInt(words[e_i + 1]));
+					}
+					if (extra_n == 2) {
+						this.base.Es.push(extra);
+						vertex_used[extra[0]] = true;
+						vertex_used[extra[1]] = true;
+					} else {
+						this.base.Ps.push(extra[0]);
+						vertex_used[extra[0]] = true;
+					}
 				}
 				break;
 			}

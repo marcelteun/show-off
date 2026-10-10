@@ -16,6 +16,7 @@ Webpack uses `webpack.common.js` for the entry and `dist/show-off-bundle.js` out
 ## Conventions
 
 - The library is bundled for browser use: its exports are also assigned to `global` for the demo pages' plain script tags. Keep those public names in sync when changing the API.
+- Each canvas owns one active shape; replacing it removes the prior input handlers and GPU buffers.
 - Shape data uses `Vs` and `Fs` arrays: faces reference vertex indices, and `OrbitShape` transform matrices are supplied as nested row arrays and converted to gl-matrix matrices internally.
-- OFF files can include two-index edge records as well as faces. Face colors may use normalized fractional channels or 0–255 integer channels; preserve both input forms when changing parsing.
+- OFF files can include two-index edge records before or after faces. Face colors may use normalized fractional channels or 0–255 integer channels; preserve both input forms when changing parsing. Pressing `e` toggles the combined edge-and-vertex overlay; `?edges=1` enables it by default.
 - Concave faces use the WebGL stencil-buffer path, drawing each face separately; convex-only models can use the combined triangle buffer. Preserve this distinction when changing triangulation or drawing.
