@@ -32,6 +32,7 @@ export {
 
 var DEG2RAD = Math.PI/360;
 var ARC_SCALE = 0.8; /* limit to switch rotation type for mouse */
+var PANEL_HANDLE_WIDTH = 48;
 var EDGE_RADIUS = 0.012; /* radius of displayed edge cylinders */
 var VERTEX_RADIUS = 0.028; /* radius of displayed vertex spheres */
 var MARKER_SEGMENTS = 8; /* radial and spherical subdivisions for markers */
@@ -384,14 +385,15 @@ function create_controls_panel(canvas) {
 	panel.style.cssText =
 		'position:absolute;z-index:2;top:0;bottom:0;left:0;width:240px;max-width:calc(100% - 8px);' +
 		'box-sizing:border-box;padding:56px 12px 12px;background:rgba(20,24,32,.94);color:#fff;' +
-		'font:16px sans-serif;transition:transform .2s ease;transform:translateX(calc(-100% + 48px));';
+		'font:16px sans-serif;transition:transform .2s ease;transform:translateX(calc(-100% + ' +
+		PANEL_HANDLE_WIDTH + 'px));';
 
 	var handle = doc.createElement('button');
 	handle.type = 'button';
 	handle.setAttribute('aria-label', 'Open controls');
 	handle.setAttribute('aria-expanded', 'false');
 	handle.style.cssText =
-		'position:absolute;top:0;right:0;width:48px;height:64px;padding:0 0 14px;border:0;' +
+		'position:absolute;top:0;right:0;width:' + PANEL_HANDLE_WIDTH + 'px;height:64px;padding:0 0 14px;border:0;' +
 		'border-radius:0 0 0 8px;background:#fff;color:#172033;font:24px sans-serif;' +
 		'cursor:pointer;touch-action:manipulation;';
 	var arrow_icon = doc.createElement('span');
@@ -402,7 +404,7 @@ function create_controls_panel(canvas) {
 		handle.setAttribute('aria-label', is_open ? 'Open controls' : 'Close controls');
 		arrow_icon.textContent = is_open ? '\u2192' : '\u2190';
 		panel.style.transform = is_open ?
-			'translateX(calc(-100% + 48px))' : 'translateX(0)';
+			'translateX(calc(-100% + ' + PANEL_HANDLE_WIDTH + 'px))' : 'translateX(0)';
 	});
 
 	var title = doc.createElement('div');
@@ -790,7 +792,7 @@ BaseShape.prototype.gl_reset_view = function() {
 	mat4.identity(gl.my.pos_mat);
 	mat4.translate(
 		gl.my.pos_mat, gl.my.pos_mat, [0.0, 0.0, -gl.my.cam_dist]);
-	gl.my.scale_f = 1.0;
+	gl.my.scale_f = gl.my.fit_scale_f;
 }
 
 var KC_5 = 53;
@@ -835,7 +837,7 @@ BaseShape.prototype.on_key_down = function(evt) {
 		switch (evt.keyCode) {
 		case KC_5:
 			console.log('Undo all zoom');
-			gl.my.scale_f = 1.0;
+			gl.my.scale_f = gl.my.fit_scale_f;
 			this.paint();
 			break;
 		}
@@ -964,6 +966,9 @@ BaseShape.prototype.gl_init = function(opt) {
 	gl.my.fade_factor = 0.0;
 	gl.my.fade_offset = 1.0;
 	gl.my.fade_min = 0.0;
+	/* Leave a handle-width margin on each side so the closed panel clears the model. */
+	gl.my.fit_scale_f = Math.max(
+		0.1, (gl.my.viewport_width - 2 * PANEL_HANDLE_WIDTH) / gl.my.viewport_width);
 	gl.my.show_edges = /(?:^|[?&])edges=1(?:&|$)/.test(window.location.search);
 	this.gl_reset_view();
 
