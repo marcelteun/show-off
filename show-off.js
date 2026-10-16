@@ -32,7 +32,7 @@ export {
 
 var DEG2RAD = Math.PI/360;
 var ARC_SCALE = 0.8; /* limit to switch rotation type for mouse */
-var PANEL_HANDLE_WIDTH = 48;
+var PANEL_BUTTON_WIDTH = 48;
 var EDGE_RADIUS = 0.012; /* radius of displayed edge cylinders */
 var VERTEX_RADIUS = 0.028; /* radius of displayed vertex spheres */
 var MARKER_SEGMENTS = 8; /* radial and spherical subdivisions for markers */
@@ -359,14 +359,23 @@ function point_key(point) {
 function update_controls_panel(shape) {
 	var controls = shape.canvas.__showOffControls;
 	if (controls) {
-		var is_pressed = shape.gl.my.show_edges;
-		controls.edges_button.setAttribute('aria-pressed', is_pressed ? 'true' : 'false');
-		controls.edges_button.style.background = is_pressed ? '#d8eaff' : '#fff';
-		controls.edges_button.style.border = is_pressed ?
-			'2px inset #426b9a' : '2px outset #b8c3d6';
-		controls.edges_button.style.boxShadow = is_pressed ?
-			'inset 0 2px 4px rgba(23,32,51,.25)' : '0 1px 2px rgba(0,0,0,.2)';
+		var edges_visible = shape.gl.my.show_edges;
+		var faces_visible = shape.gl.my.show_faces;
+		update_toggle_button(controls.edges_button, edges_visible);
+		update_toggle_button(controls.faces_button, faces_visible);
 	}
+}
+
+/*
+ * Keep a toggle's accessible state and raised/pressed appearance in sync.
+ */
+function update_toggle_button(button, is_pressed) {
+	button.setAttribute('aria-pressed', is_pressed ? 'true' : 'false');
+	button.style.background = is_pressed ? '#d8eaff' : '#fff';
+	button.style.border = is_pressed ?
+		'2px inset #426b9a' : '2px outset #b8c3d6';
+	button.style.boxShadow = is_pressed ?
+		'inset 0 2px 4px rgba(23,32,51,.25)' : '0 1px 2px rgba(0,0,0,.2)';
 }
 
 function create_controls_panel(canvas) {
@@ -386,14 +395,14 @@ function create_controls_panel(canvas) {
 		'position:absolute;z-index:2;top:0;bottom:0;left:0;width:240px;max-width:calc(100% - 8px);' +
 		'box-sizing:border-box;padding:56px 12px 12px;background:rgba(20,24,32,.94);color:#fff;' +
 		'font:16px sans-serif;transition:transform .2s ease;transform:translateX(calc(-100% + ' +
-		PANEL_HANDLE_WIDTH + 'px));';
+		PANEL_BUTTON_WIDTH + 'px));';
 
 	var handle = doc.createElement('button');
 	handle.type = 'button';
 	handle.setAttribute('aria-label', 'Open controls');
 	handle.setAttribute('aria-expanded', 'false');
 	handle.style.cssText =
-		'position:absolute;top:0;right:0;width:' + PANEL_HANDLE_WIDTH + 'px;height:64px;padding:0 0 14px;border:0;' +
+		'position:absolute;top:0;right:0;width:' + PANEL_BUTTON_WIDTH + 'px;height:64px;padding:0 0 14px;border:0;' +
 		'border-radius:0 0 0 8px;background:#fff;color:#172033;font:24px sans-serif;' +
 		'cursor:pointer;touch-action:manipulation;';
 	var arrow_icon = doc.createElement('span');
@@ -404,7 +413,7 @@ function create_controls_panel(canvas) {
 		handle.setAttribute('aria-label', is_open ? 'Open controls' : 'Close controls');
 		arrow_icon.textContent = is_open ? '\u2192' : '\u2190';
 		panel.style.transform = is_open ?
-			'translateX(calc(-100% + ' + PANEL_HANDLE_WIDTH + 'px))' : 'translateX(0)';
+			'translateX(calc(-100% + ' + PANEL_BUTTON_WIDTH + 'px))' : 'translateX(0)';
 	});
 
 	var title = doc.createElement('div');
@@ -416,7 +425,7 @@ function create_controls_panel(canvas) {
 	edges_button.setAttribute('aria-pressed', 'false');
 	edges_button.setAttribute('aria-keyshortcuts', 'E');
 	edges_button.style.cssText =
-		'display:flex;align-items:center;justify-content:space-between;width:100%;min-height:48px;' +
+		'display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:48px;' +
 		'padding:8px;border:2px outset #b8c3d6;border-radius:4px;background:#fff;color:#172033;' +
 		'font:inherit;text-align:left;cursor:pointer;touch-action:manipulation;';
 	var edges_label = doc.createElement('span');
@@ -436,8 +445,29 @@ function create_controls_panel(canvas) {
 		}
 	});
 
+	var faces_button = doc.createElement('button');
+	faces_button.type = 'button';
+	faces_button.setAttribute('aria-pressed', 'true');
+	faces_button.setAttribute('aria-keyshortcuts', 'F');
+	faces_button.style.cssText = edges_button.style.cssText;
+	var faces_label = doc.createElement('span');
+	faces_label.textContent = 'Faces';
+	var faces_shortcut = doc.createElement('kbd');
+	faces_shortcut.textContent = 'f';
+	faces_shortcut.setAttribute('aria-hidden', 'true');
+	faces_shortcut.style.cssText = shortcut_hint.style.cssText;
+	faces_button.appendChild(faces_label);
+	faces_button.appendChild(faces_shortcut);
+	faces_button.addEventListener('click', function() {
+		var shape = canvas.__showOffShape;
+		if (shape) {
+			shape.set_faces_visible(!shape.gl.my.show_faces);
+		}
+	});
+
 	panel.appendChild(title);
 	panel.appendChild(edges_button);
+	panel.appendChild(faces_button);
 	panel.appendChild(handle);
 	handle.appendChild(arrow_icon);
 	wrapper.appendChild(panel);
@@ -445,7 +475,8 @@ function create_controls_panel(canvas) {
 		wrapper: wrapper,
 		panel: panel,
 		handle: handle,
-		edges_button: edges_button
+		edges_button: edges_button,
+		faces_button: faces_button
 	};
 }
 
@@ -797,7 +828,7 @@ BaseShape.prototype.gl_reset_view = function() {
 
 var KC_5 = 53;
 var KC_C = 67;
-var KC_F = 70; /* toggle show faces: (reserved, TODO) */
+var KC_F = 70;
 var KC_E = 69;
 var KC_V = 86; /* toggle show vertices: (reserved, TODO) */
 
@@ -830,6 +861,9 @@ BaseShape.prototype.on_key_down = function(evt) {
 			break;
 		case KC_E:
 			this.set_edges_visible(!gl.my.show_edges);
+			break;
+		case KC_F:
+			this.set_faces_visible(!gl.my.show_faces);
 			break;
 		}
 	} else if (evt.shiftKey && !evt.altKey) {
@@ -944,6 +978,12 @@ BaseShape.prototype.set_edges_visible = function(visible) {
 	this.paint();
 }
 
+BaseShape.prototype.set_faces_visible = function(visible) {
+	this.gl.my.show_faces = visible;
+	update_controls_panel(this);
+	this.paint();
+}
+
 BaseShape.prototype.gl_init = function(opt) {
 	/*
 	 * opt: optional parameters in a dictionary. This can be:
@@ -968,8 +1008,10 @@ BaseShape.prototype.gl_init = function(opt) {
 	gl.my.fade_min = 0.0;
 	/* Leave a handle-width margin on each side so the closed panel clears the model. */
 	gl.my.fit_scale_f = Math.max(
-		0.1, (gl.my.viewport_width - 2 * PANEL_HANDLE_WIDTH) / gl.my.viewport_width);
+		0.1, (gl.my.viewport_width - 2 * PANEL_BUTTON_WIDTH) / gl.my.viewport_width);
 	gl.my.show_edges = /(?:^|[?&])edges=1(?:&|$)/.test(window.location.search);
+	var faces_setting = /(?:^|[?&])faces=([01])(?:&|$)/.exec(window.location.search);
+	gl.my.show_faces = faces_setting ? faces_setting[1] === '1' : true;
 	this.gl_reset_view();
 
 	var r = ARC_SCALE * Math.min(gl.my.viewport_width, gl.my.viewport_height) / 2;
@@ -1385,50 +1427,52 @@ BaseShape.prototype.draw = function() {
 		mat3.normalFromMat4(norm_mat, obj_mat);
 		gl.uniformMatrix3fv(gl.my.shader_prog.norm_mat, false, norm_mat);
 
-		/* 4 * 4 offset number of vertices, since:
-		 * - 4 bytes per float
-		 * - 4 colour channels per vertex
-		 *  */
-		gl.vertexAttribPointer(gl.my.shader_prog.v_col_attr,
-			gl.my.v_cols.elem_len, gl.FLOAT, false, 0,
-			16 * gl.my.vs.no_of_elem* k);
-		if (gl.my.use_stencil_buffer) {
-			/* Now draw each face with stencil buffer */
-			for (var i = 0; i < gl.my.ffs.length; i++) {
-				var f = gl.my.ffs[i];
-				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, f);
+		if (gl.my.show_faces) {
+			/* 4 * 4 offset number of vertices, since:
+			 * - 4 bytes per float
+			 * - 4 colour channels per vertex
+			 */
+			gl.vertexAttribPointer(gl.my.shader_prog.v_col_attr,
+				gl.my.v_cols.elem_len, gl.FLOAT, false, 0,
+				16 * gl.my.vs.no_of_elem* k);
+			if (gl.my.use_stencil_buffer) {
+				/* Now draw each face with stencil buffer */
+				for (var i = 0; i < gl.my.ffs.length; i++) {
+					var f = gl.my.ffs[i];
+					gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, f);
 
-				// For the stencil buffer
-				gl.clear(gl.STENCIL_BUFFER_BIT);
-				gl.colorMask(false, false, false, false);
-				gl.depthMask(false);
-				// always pass stencil test
-				gl.stencilFunc(gl.ALWAYS, 1, 1);
-				// stencil fail: don't care, never fails
-				// z-fail: zero (don't care, depthMask = false)
-				// both pass: invert stencil values
-				gl.stencilOp(gl.KEEP, gl.ZERO, gl.INVERT);
-				// Create triangulated stencil:
-				gl.drawElements(gl.TRIANGLES, f.no_of_elem,
-								gl.UNSIGNED_SHORT, 0);
+					// For the stencil buffer
+					gl.clear(gl.STENCIL_BUFFER_BIT);
+					gl.colorMask(false, false, false, false);
+					gl.depthMask(false);
+					// always pass stencil test
+					gl.stencilFunc(gl.ALWAYS, 1, 1);
+					// stencil fail: don't care, never fails
+					// z-fail: zero (don't care, depthMask = false)
+					// both pass: invert stencil values
+					gl.stencilOp(gl.KEEP, gl.ZERO, gl.INVERT);
+					// Create triangulated stencil:
+					gl.drawElements(gl.TRIANGLES, f.no_of_elem,
+									gl.UNSIGNED_SHORT, 0);
 
-				// reset colour and depth settings
-				gl.depthMask(true);
-				gl.colorMask(true, true, true, true);
-				// Draw only where stencil equals 1 (masked to 1)
-				// gl.INVERT was used, i.e. in case of e.g. 8 bits the
-				// value is either 0 or 0xff, but only the last bit is
-				// checked.
-				gl.stencilFunc(gl.EQUAL, 1, 1);
-				gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
-				// Use triangulated stencil:
-				gl.drawElements(gl.TRIANGLES, f.no_of_elem,
-								gl.UNSIGNED_SHORT, 0);
+					// reset colour and depth settings
+					gl.depthMask(true);
+					gl.colorMask(true, true, true, true);
+					// Draw only where stencil equals 1 (masked to 1)
+					// gl.INVERT was used, i.e. in case of e.g. 8 bits the
+					// value is either 0 or 0xff, but only the last bit is
+					// checked.
+					gl.stencilFunc(gl.EQUAL, 1, 1);
+					gl.stencilOp(gl.KEEP, gl.KEEP, gl.KEEP);
+					// Use triangulated stencil:
+					gl.drawElements(gl.TRIANGLES, f.no_of_elem,
+									gl.UNSIGNED_SHORT, 0);
+				}
+			} else {
+				gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.my.fs);
+				gl.drawElements(gl.TRIANGLES, gl.my.fs.no_of_elem,
+									gl.UNSIGNED_SHORT, 0);
 			}
-		} else {
-			gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, gl.my.fs);
-			gl.drawElements(gl.TRIANGLES, gl.my.fs.no_of_elem,
-								gl.UNSIGNED_SHORT, 0);
 		}
 		if (gl.my.show_edges && gl.my.marker_count) {
 			if (gl.my.use_stencil_buffer) {
