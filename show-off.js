@@ -358,8 +358,13 @@ function point_key(point) {
 function update_controls_panel(shape) {
 	var controls = shape.canvas.__showOffControls;
 	if (controls) {
-		controls.edges_button.setAttribute(
-			'aria-pressed', shape.gl.my.show_edges ? 'true' : 'false');
+		var is_pressed = shape.gl.my.show_edges;
+		controls.edges_button.setAttribute('aria-pressed', is_pressed ? 'true' : 'false');
+		controls.edges_button.style.background = is_pressed ? '#d8eaff' : '#fff';
+		controls.edges_button.style.border = is_pressed ?
+			'2px inset #426b9a' : '2px outset #b8c3d6';
+		controls.edges_button.style.boxShadow = is_pressed ?
+			'inset 0 2px 4px rgba(23,32,51,.25)' : '0 1px 2px rgba(0,0,0,.2)';
 	}
 }
 
@@ -383,17 +388,19 @@ function create_controls_panel(canvas) {
 
 	var handle = doc.createElement('button');
 	handle.type = 'button';
-	handle.textContent = '\u2192';
 	handle.setAttribute('aria-label', 'Open controls');
 	handle.setAttribute('aria-expanded', 'false');
 	handle.style.cssText =
-		'position:absolute;top:0;right:0;width:48px;height:48px;border:0;border-radius:0 0 0 8px;' +
-		'background:#fff;color:#172033;font:24px sans-serif;cursor:pointer;touch-action:manipulation;';
+		'position:absolute;top:0;right:0;width:48px;height:64px;padding:0 0 14px;border:0;' +
+		'border-radius:0 0 0 8px;background:#fff;color:#172033;font:24px sans-serif;' +
+		'cursor:pointer;touch-action:manipulation;';
+	var arrow_icon = doc.createElement('span');
+	arrow_icon.textContent = '\u2192';
 	handle.addEventListener('click', function() {
 		var is_open = handle.getAttribute('aria-expanded') === 'true';
 		handle.setAttribute('aria-expanded', is_open ? 'false' : 'true');
 		handle.setAttribute('aria-label', is_open ? 'Open controls' : 'Close controls');
-		handle.textContent = is_open ? '\u2192' : '\u2190';
+		arrow_icon.textContent = is_open ? '\u2192' : '\u2190';
 		panel.style.transform = is_open ?
 			'translateX(calc(-100% + 48px))' : 'translateX(0)';
 	});
@@ -404,11 +411,22 @@ function create_controls_panel(canvas) {
 
 	var edges_button = doc.createElement('button');
 	edges_button.type = 'button';
-	edges_button.textContent = 'Edges & vertices';
 	edges_button.setAttribute('aria-pressed', 'false');
+	edges_button.setAttribute('aria-keyshortcuts', 'E');
 	edges_button.style.cssText =
-		'width:100%;min-height:48px;padding:8px;border:1px solid #b8c3d6;border-radius:4px;' +
-		'background:#fff;color:#172033;font:inherit;text-align:left;cursor:pointer;touch-action:manipulation;';
+		'display:flex;align-items:center;justify-content:space-between;width:100%;min-height:48px;' +
+		'padding:8px;border:2px outset #b8c3d6;border-radius:4px;background:#fff;color:#172033;' +
+		'font:inherit;text-align:left;cursor:pointer;touch-action:manipulation;';
+	var edges_label = doc.createElement('span');
+	edges_label.textContent = 'Edges & vertices';
+	var shortcut_hint = doc.createElement('kbd');
+	shortcut_hint.textContent = 'e';
+	shortcut_hint.setAttribute('aria-hidden', 'true');
+	shortcut_hint.style.cssText =
+		'min-width:16px;padding:1px 5px;border:1px solid #8995a8;border-radius:3px;' +
+		'background:#f1f3f6;color:#172033;font:bold 12px sans-serif;line-height:16px;text-align:center;';
+	edges_button.appendChild(edges_label);
+	edges_button.appendChild(shortcut_hint);
 	edges_button.addEventListener('click', function() {
 		var shape = canvas.__showOffShape;
 		if (shape) {
@@ -419,6 +437,7 @@ function create_controls_panel(canvas) {
 	panel.appendChild(title);
 	panel.appendChild(edges_button);
 	panel.appendChild(handle);
+	handle.appendChild(arrow_icon);
 	wrapper.appendChild(panel);
 	canvas.__showOffControls = {
 		wrapper: wrapper,
