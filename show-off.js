@@ -355,6 +355,79 @@ function point_key(point) {
 	}).join(',');
 }
 
+function update_controls_panel(shape) {
+	var controls = shape.canvas.__showOffControls;
+	if (controls) {
+		controls.edges_button.setAttribute(
+			'aria-pressed', shape.gl.my.show_edges ? 'true' : 'false');
+	}
+}
+
+function create_controls_panel(canvas) {
+	if (canvas.__showOffControls || !canvas.parentNode) {
+		return;
+	}
+	var doc = canvas.ownerDocument;
+	var wrapper = doc.createElement('div');
+	wrapper.style.cssText =
+		'position:relative;display:inline-block;vertical-align:top;overflow:hidden;max-width:100%;';
+	canvas.parentNode.insertBefore(wrapper, canvas);
+	wrapper.appendChild(canvas);
+
+	var panel = doc.createElement('aside');
+	panel.setAttribute('aria-label', 'Show-off controls');
+	panel.style.cssText =
+		'position:absolute;z-index:2;top:0;bottom:0;left:0;width:240px;max-width:calc(100% - 8px);' +
+		'box-sizing:border-box;padding:56px 12px 12px;background:rgba(20,24,32,.94);color:#fff;' +
+		'font:16px sans-serif;transition:transform .2s ease;transform:translateX(calc(-100% + 48px));';
+
+	var handle = doc.createElement('button');
+	handle.type = 'button';
+	handle.textContent = '\u2192';
+	handle.setAttribute('aria-label', 'Open controls');
+	handle.setAttribute('aria-expanded', 'false');
+	handle.style.cssText =
+		'position:absolute;top:0;right:0;width:48px;height:48px;border:0;border-radius:0 0 0 8px;' +
+		'background:#fff;color:#172033;font:24px sans-serif;cursor:pointer;touch-action:manipulation;';
+	handle.addEventListener('click', function() {
+		var is_open = handle.getAttribute('aria-expanded') === 'true';
+		handle.setAttribute('aria-expanded', is_open ? 'false' : 'true');
+		handle.setAttribute('aria-label', is_open ? 'Open controls' : 'Close controls');
+		handle.textContent = is_open ? '\u2192' : '\u2190';
+		panel.style.transform = is_open ?
+			'translateX(calc(-100% + 48px))' : 'translateX(0)';
+	});
+
+	var title = doc.createElement('div');
+	title.textContent = 'Display';
+	title.style.cssText = 'margin-bottom:12px;font-weight:bold;';
+
+	var edges_button = doc.createElement('button');
+	edges_button.type = 'button';
+	edges_button.textContent = 'Edges & vertices';
+	edges_button.setAttribute('aria-pressed', 'false');
+	edges_button.style.cssText =
+		'width:100%;min-height:48px;padding:8px;border:1px solid #b8c3d6;border-radius:4px;' +
+		'background:#fff;color:#172033;font:inherit;text-align:left;cursor:pointer;touch-action:manipulation;';
+	edges_button.addEventListener('click', function() {
+		var shape = canvas.__showOffShape;
+		if (shape) {
+			shape.set_edges_visible(!shape.gl.my.show_edges);
+		}
+	});
+
+	panel.appendChild(title);
+	panel.appendChild(edges_button);
+	panel.appendChild(handle);
+	wrapper.appendChild(panel);
+	canvas.__showOffControls = {
+		wrapper: wrapper,
+		panel: panel,
+		handle: handle,
+		edges_button: edges_button
+	};
+}
+
 function create_gl_context(canvas) {
 	var ctx;
 	try {
@@ -735,11 +808,7 @@ BaseShape.prototype.on_key_down = function(evt) {
 			this.paint();
 			break;
 		case KC_E:
-			gl.my.show_edges = !gl.my.show_edges;
-			if (gl.my.show_edges && !gl.my.marker_vs) {
-				this.update_edge_buffers();
-			}
-			this.paint();
+			this.set_edges_visible(!gl.my.show_edges);
 			break;
 		}
 	} else if (evt.shiftKey && !evt.altKey) {
@@ -842,6 +911,15 @@ BaseShape.prototype.destroy = function() {
 BaseShape.prototype.update_bgcol = function(col) {
 	var gl = this.gl;
 	gl.clearColor(col[0], col[1], col[2], 1.0);
+	this.paint();
+}
+
+BaseShape.prototype.set_edges_visible = function(visible) {
+	this.gl.my.show_edges = visible;
+	if (visible && !this.gl.my.marker_vs) {
+		this.update_edge_buffers();
+	}
+	update_controls_panel(this);
 	this.paint();
 }
 
@@ -1351,6 +1429,8 @@ BaseShape.prototype.first_paint = function() {
 	this.triangulate();
 	this.on_paint();
 	this.input_init();
+	create_controls_panel(this.canvas);
+	update_controls_panel(this);
 }
 
 BaseShape.prototype.on_paint = function() {

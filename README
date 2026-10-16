@@ -101,6 +101,8 @@ always) this is known.
 
 Press 'e' to toggle the display of edges and vertices. They are hidden by
 default; add `?edges=1` to the viewer page URL to show them when it loads.
+Each canvas also has a slide-out controls panel, opened with the arrow tab on
+its left edge. The panel can toggle edges and vertices on touch screens.
 
 Navigation by Touch
 
