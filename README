@@ -99,12 +99,12 @@ The key 'c' is used to toggle support for concave and convex faces. This is also
 a parameter to the function showing the off-file, since usually (though not
 always) this is known.
 
-Press 'e' to toggle the display of edges and vertices. They are hidden by
-default; add `?edges=1` to the viewer page URL to show them when it loads.
+Press 'v', 'e', and 'f' to toggle vertices, edges, and faces independently.
+Faces are shown by default; vertices and edges are hidden. Use
+`?vertices=1`, `?edges=1`, and `?faces=0` or `?faces=1` to set their initial
+visibility in the viewer URL.
 Each canvas also has a slide-out controls panel, opened with the arrow tab on
-its left edge. The panel can toggle edges and vertices on touch screens.
-Faces are shown by default and can be toggled with 'f' or the Faces button.
-Use `?faces=0` or `?faces=1` in the viewer URL to hide or show faces initially.
+its left edge. The panel has separate visibility buttons for touch screens.
 
 Navigation by Touch
 

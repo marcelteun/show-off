@@ -359,8 +359,10 @@ function point_key(point) {
 function update_controls_panel(shape) {
 	var controls = shape.canvas.__showOffControls;
 	if (controls) {
+		var vertices_visible = shape.gl.my.show_vertices;
 		var edges_visible = shape.gl.my.show_edges;
 		var faces_visible = shape.gl.my.show_faces;
+		update_toggle_button(controls.vertices_button, vertices_visible);
 		update_toggle_button(controls.edges_button, edges_visible);
 		update_toggle_button(controls.faces_button, faces_visible);
 	}
@@ -420,45 +422,45 @@ function create_controls_panel(canvas) {
 	title.textContent = 'Display';
 	title.style.cssText = 'margin-bottom:12px;font-weight:bold;';
 
-	var edges_button = doc.createElement('button');
-	edges_button.type = 'button';
-	edges_button.setAttribute('aria-pressed', 'false');
-	edges_button.setAttribute('aria-keyshortcuts', 'E');
-	edges_button.style.cssText =
+	var toggle_style =
 		'display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:48px;' +
 		'padding:8px;border:2px outset #b8c3d6;border-radius:4px;background:#fff;color:#172033;' +
 		'font:inherit;text-align:left;cursor:pointer;touch-action:manipulation;';
-	var edges_label = doc.createElement('span');
-	edges_label.textContent = 'Edges & vertices';
-	var shortcut_hint = doc.createElement('kbd');
-	shortcut_hint.textContent = 'e';
-	shortcut_hint.setAttribute('aria-hidden', 'true');
-	shortcut_hint.style.cssText =
+	var shortcut_style =
 		'min-width:16px;padding:1px 5px;border:1px solid #8995a8;border-radius:3px;' +
 		'background:#f1f3f6;color:#172033;font:bold 12px sans-serif;line-height:16px;text-align:center;';
-	edges_button.appendChild(edges_label);
-	edges_button.appendChild(shortcut_hint);
-	edges_button.addEventListener('click', function() {
+
+	function make_toggle(label, shortcut, on_click) {
+		var button = doc.createElement('button');
+		button.type = 'button';
+		button.setAttribute('aria-pressed', 'false');
+		button.setAttribute('aria-keyshortcuts', shortcut.toUpperCase());
+		button.style.cssText = toggle_style;
+		var button_label = doc.createElement('span');
+		button_label.textContent = label;
+		var shortcut_hint = doc.createElement('kbd');
+		shortcut_hint.textContent = shortcut;
+		shortcut_hint.setAttribute('aria-hidden', 'true');
+		shortcut_hint.style.cssText = shortcut_style;
+		button.appendChild(button_label);
+		button.appendChild(shortcut_hint);
+		button.addEventListener('click', on_click);
+		return button;
+	}
+
+	var vertices_button = make_toggle('Vertices', 'v', function() {
+		var shape = canvas.__showOffShape;
+		if (shape) {
+			shape.set_vertices_visible(!shape.gl.my.show_vertices);
+		}
+	});
+	var edges_button = make_toggle('Edges', 'e', function() {
 		var shape = canvas.__showOffShape;
 		if (shape) {
 			shape.set_edges_visible(!shape.gl.my.show_edges);
 		}
 	});
-
-	var faces_button = doc.createElement('button');
-	faces_button.type = 'button';
-	faces_button.setAttribute('aria-pressed', 'true');
-	faces_button.setAttribute('aria-keyshortcuts', 'F');
-	faces_button.style.cssText = edges_button.style.cssText;
-	var faces_label = doc.createElement('span');
-	faces_label.textContent = 'Faces';
-	var faces_shortcut = doc.createElement('kbd');
-	faces_shortcut.textContent = 'f';
-	faces_shortcut.setAttribute('aria-hidden', 'true');
-	faces_shortcut.style.cssText = shortcut_hint.style.cssText;
-	faces_button.appendChild(faces_label);
-	faces_button.appendChild(faces_shortcut);
-	faces_button.addEventListener('click', function() {
+	var faces_button = make_toggle('Faces', 'f', function() {
 		var shape = canvas.__showOffShape;
 		if (shape) {
 			shape.set_faces_visible(!shape.gl.my.show_faces);
@@ -466,6 +468,7 @@ function create_controls_panel(canvas) {
 	});
 
 	panel.appendChild(title);
+	panel.appendChild(vertices_button);
 	panel.appendChild(edges_button);
 	panel.appendChild(faces_button);
 	panel.appendChild(handle);
@@ -475,6 +478,7 @@ function create_controls_panel(canvas) {
 		wrapper: wrapper,
 		panel: panel,
 		handle: handle,
+		vertices_button: vertices_button,
 		edges_button: edges_button,
 		faces_button: faces_button
 	};
@@ -830,7 +834,7 @@ var KC_5 = 53;
 var KC_C = 67;
 var KC_F = 70;
 var KC_E = 69;
-var KC_V = 86; /* toggle show vertices: (reserved, TODO) */
+var KC_V = 86;
 
 BaseShape.prototype.on_key_down = function(evt) {
 	/*
@@ -861,6 +865,9 @@ BaseShape.prototype.on_key_down = function(evt) {
 			break;
 		case KC_E:
 			this.set_edges_visible(!gl.my.show_edges);
+			break;
+		case KC_V:
+			this.set_vertices_visible(!gl.my.show_vertices);
 			break;
 		case KC_F:
 			this.set_faces_visible(!gl.my.show_faces);
@@ -945,7 +952,9 @@ BaseShape.prototype.destroy = function() {
 	if (!this.destroyed && this.canvas.__showOffShape === this && this.gl) {
 		var buffers = [
 			this.gl.my.vs, this.gl.my.v_cols, this.gl.my.ns, this.gl.my.fs,
-			this.gl.my.marker_vs, this.gl.my.marker_ns, this.gl.my.marker_cols
+			this.gl.my.vertex_marker_vs, this.gl.my.vertex_marker_ns,
+			this.gl.my.vertex_marker_cols, this.gl.my.edge_marker_vs,
+			this.gl.my.edge_marker_ns, this.gl.my.edge_marker_cols
 		].concat(this.gl.my.ffs || []);
 		for (var i = 0; i < buffers.length; i++) {
 			if (buffers[i]) {
@@ -971,8 +980,17 @@ BaseShape.prototype.update_bgcol = function(col) {
 
 BaseShape.prototype.set_edges_visible = function(visible) {
 	this.gl.my.show_edges = visible;
-	if (visible && !this.gl.my.marker_vs) {
-		this.update_edge_buffers();
+	if (visible && !this.gl.my.edge_marker_vs) {
+		this.update_marker_buffers();
+	}
+	update_controls_panel(this);
+	this.paint();
+}
+
+BaseShape.prototype.set_vertices_visible = function(visible) {
+	this.gl.my.show_vertices = visible;
+	if (visible && !this.gl.my.vertex_marker_vs) {
+		this.update_marker_buffers();
 	}
 	update_controls_panel(this);
 	this.paint();
@@ -1009,7 +1027,9 @@ BaseShape.prototype.gl_init = function(opt) {
 	/* Leave a handle-width margin on each side so the closed panel clears the model. */
 	gl.my.fit_scale_f = Math.max(
 		0.1, (gl.my.viewport_width - 2 * PANEL_BUTTON_WIDTH) / gl.my.viewport_width);
-	gl.my.show_edges = /(?:^|[?&])edges=1(?:&|$)/.test(window.location.search);
+	var query = window.location.search;
+	gl.my.show_vertices = /(?:^|[?&])vertices=1(?:&|$)/.test(query);
+	gl.my.show_edges = /(?:^|[?&])edges=1(?:&|$)/.test(query);
 	var faces_setting = /(?:^|[?&])faces=([01])(?:&|$)/.exec(window.location.search);
 	gl.my.show_faces = faces_setting ? faces_setting[1] === '1' : true;
 	this.gl_reset_view();
@@ -1290,17 +1310,19 @@ BaseShape.prototype.triangulate = function() {
 	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(fs), gl.STATIC_DRAW);
 	gl.my.fs.elem_len = 1;
 	gl.my.fs.no_of_elem = fs.length;
-	if (gl.my.show_edges || gl.my.marker_vs) {
-		this.update_edge_buffers();
+	if (gl.my.show_edges || gl.my.show_vertices ||
+		gl.my.vertex_marker_vs || gl.my.edge_marker_vs) {
+		this.update_marker_buffers();
 	}
 }
 
 /*
- * Build and upload shared marker geometry for unique edges and vertices.
+ * Build and upload separate marker geometry for unique edges and vertices.
  */
-BaseShape.prototype.update_edge_buffers = function() {
+BaseShape.prototype.update_marker_buffers = function() {
 	var gl = this.gl;
-	var data = {vertices: [], normals: [], colors: []};
+	var vertex_data = {vertices: [], normals: [], colors: []};
+	var edge_data = {vertices: [], normals: [], colors: []};
 	var vertices = this.base.Vs;
 	var points = Object.create(null);
 	var edges = [];
@@ -1323,7 +1345,7 @@ BaseShape.prototype.update_edge_buffers = function() {
 		var key = point_key(vertices[i]);
 		if (!points[key]) {
 			points[key] = true;
-			add_sphere(data, vertices[i]);
+			add_sphere(vertex_data, vertices[i]);
 		}
 	}
 	if (this.base.Es) {
@@ -1338,25 +1360,29 @@ BaseShape.prototype.update_edge_buffers = function() {
 		}
 	}
 	for (var e = 0; e < edges.length; e++) {
-		add_cylinder(data, edges[e][0], edges[e][1]);
+		add_cylinder(edge_data, edges[e][0], edges[e][1]);
 	}
 
-	var buffers = [
-		['marker_vs', gl.ARRAY_BUFFER, data.vertices, 3],
-		['marker_ns', gl.ARRAY_BUFFER, data.normals, 3],
-		['marker_cols', gl.ARRAY_BUFFER, data.colors, 4]
-	];
-	for (var b = 0; b < buffers.length; b++) {
-		var buffer = gl.my[buffers[b][0]];
-		if (!buffer) {
-			buffer = gl.createBuffer();
-			gl.my[buffers[b][0]] = buffer;
+	function upload_marker(prefix, data) {
+		var buffers = [
+			[prefix + '_vs', data.vertices, 3],
+			[prefix + '_ns', data.normals, 3],
+			[prefix + '_cols', data.colors, 4]
+		];
+		for (var i = 0; i < buffers.length; i++) {
+			var buffer = gl.my[buffers[i][0]];
+			if (!buffer) {
+				buffer = gl.createBuffer();
+				gl.my[buffers[i][0]] = buffer;
+			}
+			gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(buffers[i][1]), gl.STATIC_DRAW);
+			buffer.elem_len = buffers[i][2];
 		}
-		gl.bindBuffer(buffers[b][1], buffer);
-		gl.bufferData(buffers[b][1], new Float32Array(buffers[b][2]), gl.STATIC_DRAW);
-		buffer.elem_len = buffers[b][3];
+		gl.my[prefix + '_count'] = data.vertices.length / 3;
 	}
-	gl.my.marker_count = data.vertices.length / 3;
+	upload_marker('vertex_marker', vertex_data);
+	upload_marker('edge_marker', edge_data);
 }
 
 BaseShape.prototype.calc_pos_mat = function() {
@@ -1474,17 +1500,29 @@ BaseShape.prototype.draw = function() {
 									gl.UNSIGNED_SHORT, 0);
 			}
 		}
-		if (gl.my.show_edges && gl.my.marker_count) {
+		if ((gl.my.show_vertices && gl.my.vertex_marker_count) ||
+			(gl.my.show_edges && gl.my.edge_marker_count)) {
 			if (gl.my.use_stencil_buffer) {
 				gl.disable(gl.STENCIL_TEST);
 			}
-			gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.marker_vs);
-			gl.vertexAttribPointer(gl.my.shader_prog.v_pos_attr, 3, gl.FLOAT, false, 0, 0);
-			gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.marker_ns);
-			gl.vertexAttribPointer(gl.my.shader_prog.norms_attr, 3, gl.FLOAT, false, 0, 0);
-			gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.marker_cols);
-			gl.vertexAttribPointer(gl.my.shader_prog.v_col_attr, 4, gl.FLOAT, false, 0, 0);
-			gl.drawArrays(gl.TRIANGLES, 0, gl.my.marker_count);
+			if (gl.my.show_edges && gl.my.edge_marker_count) {
+				gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.edge_marker_vs);
+				gl.vertexAttribPointer(gl.my.shader_prog.v_pos_attr, 3, gl.FLOAT, false, 0, 0);
+				gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.edge_marker_ns);
+				gl.vertexAttribPointer(gl.my.shader_prog.norms_attr, 3, gl.FLOAT, false, 0, 0);
+				gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.edge_marker_cols);
+				gl.vertexAttribPointer(gl.my.shader_prog.v_col_attr, 4, gl.FLOAT, false, 0, 0);
+				gl.drawArrays(gl.TRIANGLES, 0, gl.my.edge_marker_count);
+			}
+			if (gl.my.show_vertices && gl.my.vertex_marker_count) {
+				gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.vertex_marker_vs);
+				gl.vertexAttribPointer(gl.my.shader_prog.v_pos_attr, 3, gl.FLOAT, false, 0, 0);
+				gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.vertex_marker_ns);
+				gl.vertexAttribPointer(gl.my.shader_prog.norms_attr, 3, gl.FLOAT, false, 0, 0);
+				gl.bindBuffer(gl.ARRAY_BUFFER, gl.my.vertex_marker_cols);
+				gl.vertexAttribPointer(gl.my.shader_prog.v_col_attr, 4, gl.FLOAT, false, 0, 0);
+				gl.drawArrays(gl.TRIANGLES, 0, gl.my.vertex_marker_count);
+			}
 			if (gl.my.use_stencil_buffer) {
 				gl.enable(gl.STENCIL_TEST);
 			}
